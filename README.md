@@ -46,9 +46,11 @@ By default, this is how the GermAnki is programmed to work.
 **Front:**
 - The German word.
 - A pronunciation audio.
+
 **Back:**
 - The English translations.
 - A relevant picture to help with memorization.
+
 **Extra:**
 - Description, example, and other information relevant for the word type e.g. perfect form of verbs, article and plural form of nouns.
 
