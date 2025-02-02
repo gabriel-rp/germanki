@@ -7,6 +7,8 @@ This is only possible thanks to [AnkiConnect](https://foosoft.net/projects/anki-
 1. Automatically include pronunciation audio to your card.
 2. Automatically include a relevant image to your card.
 
+<img src="docs/img/preview.png">
+
 # Customizations
 ## Change Speaker's Voice
 Choose among available voices to pronounce the German text the front of your card.
