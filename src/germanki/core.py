@@ -165,7 +165,7 @@ class Germanki:
         )
 
     def _get_image(self, query: str) -> Optional[Path]:
-        page = randint(1, 50)
+        page = randint(1, 100)
         image_path = self.config.image_filepath(
             Germanki.convert_query_to_filename(f'{query}_{page}', ext='jpg')
         )
