@@ -1,5 +1,5 @@
 # GermAnki
-Make Anki German vocabulary card creation less time-consuming with GermanAnki.
+Make Anki German vocabulary card creation less time-consuming with GermAnki.
 
 This is only possible thanks to [AnkiConnect](https://foosoft.net/projects/anki-connect/), [TTSMP3](https://ttsmp3.com/), and [Pexels](https://www.pexels.com/). Thanks!
 
