@@ -145,12 +145,6 @@ zufrieden sein mit
 
 This result can be pasted directly onto GermAnki.
 
-### Preview
-<img src="docs/img/preview.png">
-
-### Generated Anki Card
-<img src="docs/img/dog_card.png">
-
 # TODO
 * Integrate with ChatGPT API to improve the experience.
 * Alternatively, scrape `https://www.verbformen.de/` or `https://www.duden.de/` for verb forms and translation.
