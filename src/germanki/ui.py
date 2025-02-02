@@ -36,7 +36,7 @@ class UIController:
     def __init__(self, preview_columns: int = 3):
         self._germanki = Germanki()
         self.preview_refresh_config = None
-        self.preview_columns = 3
+        self.preview_columns = preview_columns
 
     @staticmethod
     def default_input_text() -> str:
@@ -123,19 +123,20 @@ class UIController:
                 option=RefreshOption.SELECTED, selected_index=index
             )
 
-        def add_refresh_button() -> None:
+        def add_refresh_button(id: str) -> None:
             st.button(
-                f'Refresh Card {index+1}',
+                f'Refresh Image',
                 icon='🔄',
                 type='secondary',
-                key=f'refresh_images_{index}',
+                key=f'refresh_images_{index}_{id}',
                 on_click=set_selected_index,
                 use_container_width=True,
             )
 
-        def add_image_if_exists(image_path) -> None:
+        def add_image_if_exists(image_path: str, id: str) -> None:
             if image_path:
                 st.image(image_path)
+                add_refresh_button(id)
 
         def add_audio_if_exists(audio) -> None:
             if audio:
@@ -161,7 +162,6 @@ class UIController:
             st.write(card_part_contents_html(text), unsafe_allow_html=True)
 
         # Start of UI refresh
-        add_refresh_button()
         with st.expander(
             f'**Card {index+1} Preview**',
             icon='📄',
@@ -169,12 +169,14 @@ class UIController:
         ):
             write_section_divider('FRONT')
             write_card_content(self._germanki.cards[index].front)
-            add_image_if_exists(self._germanki.cards[index].front_image)
+            add_image_if_exists(
+                self._germanki.cards[index].front_image, 'front'
+            )
             add_audio_if_exists(self._germanki.cards[index].front_audio)
 
             write_section_divider('BACK')
             write_card_content(self._germanki.cards[index].back)
-            add_image_if_exists(self._germanki.cards[index].back_image)
+            add_image_if_exists(self._germanki.cards[index].back_image, 'back')
             add_audio_if_exists(self._germanki.cards[index].back_audio)
 
             write_section_divider('EXTRA')
