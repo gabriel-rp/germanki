@@ -63,7 +63,8 @@ Example:
 ## ChatGPT/LLM
 Use ChatGPT or similar tool to generate the inputs for your card with a simple prompt. All you need to provide are the German words you would like to learn.
 
-### Prompt
+### Prompt Example
+Adjust as needed.
 ```
 For each German word/phrase, provide:
 - A brief German description on its own line.
