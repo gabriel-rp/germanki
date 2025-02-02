@@ -1,3 +1,6 @@
+[![code style blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/invenia/Blue)
+[![codecov](https://codecov.io/gh/gabriel-rp/germanki/graph/badge.svg?token=BT3BBAOSBW)](https://codecov.io/gh/gabriel-rp/germanki)
+
 # GermAnki
 Make Anki German vocabulary card creation less time-consuming with GermAnki.
 
