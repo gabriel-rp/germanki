@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "germanki"
+version = "0.1.0"
+description = ""
+authors = ["Gabriel R. Pereira"]
+readme = "README.md"
+packages = [{include = "germanki", from="src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pre-commit = "^4.1.0"
+streamlit = "^1.41.1"
+pydantic = "^2.10.6"
+watchdog = "^6.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

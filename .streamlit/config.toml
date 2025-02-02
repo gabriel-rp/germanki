@@ -1,0 +1,11 @@
+[client]
+toolbarMode = "minimal"
+
+[server]
+runOnSave = true
+
+[theme]
+primaryColor="#FF6F61"  # Warm Neon Coral
+backgroundColor="#F0F0F0"  # Soft Light Grey
+secondaryBackgroundColor="#F7D1D1"  # Light Pastel Pink
+textColor="#333333"  # Dark Grey for readability

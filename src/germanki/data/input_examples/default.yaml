@@ -1,0 +1,41 @@
+- front: Hund
+  back: dog
+  extra: |
+    der Hund, die Hunde
+    Ein Tier, das oft als Haustier gehalten wird.
+    Beispiel: Mein Hund spielt im Garten.
+
+- front: Stuhl
+  back: chair
+  extra: |
+    der Stuhl, die Stühle
+    Ein Möbelstück, auf dem man sitzt.
+    Beispiel: Der Stuhl ist sehr bequem.
+
+- front: studieren
+  back: to study
+  extra: |
+    haben + studiert
+    An einer Universität oder Hochschule lernen.
+    Beispiel: Er studiert Mathematik in Berlin.
+
+- front: gefallen
+  back: to like, to please
+  extra: |
+    haben + gefallen
+    Etwas oder jemand findet man schön oder gut.
+    Beispiel: Das Kleid gefällt mir sehr.
+
+- front: ich freue mich
+  back: I am happy, I look forward to
+  extra: |
+    Expression
+    Ausdruck der Freude oder Vorfreude.
+    Beispiel: Ich freue mich auf den Urlaub.
+
+- front: zufrieden sein mit
+  back: to be satisfied with
+  extra: |
+    sein + zufrieden gewesen
+    Mit etwas oder jemandem glücklich oder einverstanden sein.
+    Beispiel: Sie ist mit ihrem Job zufrieden.
