@@ -153,7 +153,12 @@ class UIController:
             )
 
         def card_part_contents_html(content: str) -> str:
-            return f'<div style="background-color: rgba(51, 51, 51, 0.04); padding: 10px"><p>{content}</p></div>'
+            content_html = ''.join(
+                f'<span>{part}</span>'
+                for part in content.split('\n')
+                if len(part.strip()) > 0
+            )
+            return f'<div style="background-color: rgba(51, 51, 51, 0.04); padding: 10px">{content_html}</div>'
 
         def write_section_divider(text: str) -> None:
             st.write(section_divider_html(text), unsafe_allow_html=True)
