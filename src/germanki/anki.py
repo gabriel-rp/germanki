@@ -58,11 +58,11 @@ class AnkiAPI:
         if anki_card.front_audio:
             fields[
                 'Front'
-            ] += f'<br>\n <audio controls src="{anki_card.front_audio_anki_filename}"></audio>'
+            ] += f'<br>\n <audio controls autoplay src="{anki_card.front_audio_anki_filename}"></audio>'
         if anki_card.back_audio:
             fields[
                 'Back'
-            ] += f'<br>\n <audio controls src="{anki_card.back_audio_anki_filename}"></audio>'
+            ] += f'<br>\n <audio controls autoplay src="{anki_card.back_audio_anki_filename}"></audio>'
         if anki_card.front_image:
             fields[
                 'Front'
