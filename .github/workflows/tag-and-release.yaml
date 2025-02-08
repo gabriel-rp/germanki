@@ -1,0 +1,62 @@
+name: Tag and Release
+
+on:
+  - push
+
+jobs:
+  tag:
+    name: Check version and tags
+    runs-on: ubuntu-latest
+    needs: push
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read Python version
+        id: python_version
+        run: echo "PYTHON_VERSION=$(cat .python-version)" >> $GITHUB_ENV
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Extract version from Poetry
+        id: version
+        run: |
+          version=$(poetry version --short)
+          echo "version=$version" >> $GITHUB_ENV
+
+      - name: Check if tag exists
+        run: |
+          if git rev-parse "v${{ env.version }}" >/dev/null 2>&1; then
+            echo "Tag v${{ env.version }} already exists."
+            exit 1
+          fi
+
+      - name: Create and push tag (only on main branch)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git tag v${{ env.version }}
+          git push origin v${{ env.version }}
+
+      - name: Configure PyPI
+        run: poetry config pypi-token.pypi ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Build package
+        run: poetry build
+
+      - name: Publish package to PyPI
+        run: poetry publish
