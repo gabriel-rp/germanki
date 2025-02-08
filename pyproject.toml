@@ -6,17 +6,24 @@ authors = ["Gabriel R. Pereira"]
 readme = "README.md"
 packages = [{include = "germanki", from="src"}]
 
+[tool.poetry.scripts]
+germanki = "germanki.__main__:main"
+
 [tool.poetry.dependencies]
 python = "3.11.11"
 pre-commit = "^4.1.0"
 streamlit = "^1.41.1"
 pydantic = "^2.10.6"
 watchdog = "^6.0.0"
+openai = "^1.61.0"
+ratelimit = "^2.2.1"
+tenacity = "^9.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.4"
 coverage = "^7.6.10"
 pytest-cov = "^6.0.0"
+requests-mock = "^1.12.1"
 
 [build-system]
 requires = ["poetry-core"]

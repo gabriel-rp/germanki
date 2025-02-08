@@ -3,6 +3,7 @@ toolbarMode = "minimal"
 
 [server]
 runOnSave = true
+enableStaticServing = true
 
 [theme]
 primaryColor="#FF6F61"  # Warm Neon Coral

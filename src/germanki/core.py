@@ -3,13 +3,153 @@ from random import randint
 from typing import List, Optional
 
 import requests
-import yaml
-from pydantic.dataclasses import dataclass
+from pydantic import BaseModel, Field
 
-from germanki.anki import AnkiAPI, AnkiCard
-from germanki.config import AudioPosition, Config, ImagePosition
-from germanki.pexels import PexelsAPI
+import germanki
+from germanki.anki_connect import (
+    AnkiCard,
+    AnkiConnectClient,
+    AnkiMedia,
+    AnkiMediaType,
+)
+from germanki.config import Config
+from germanki.pexels import PexelsClient, SearchResponse
 from germanki.tts_mp3 import TTSAPI
+
+
+class AnkiCardInfo(BaseModel):
+    # front
+    word: str
+    # back
+    translations: List[str]
+    # extra
+    definition: str
+    examples: List[str]
+    extra: str
+    one_word_summary: Optional[str] = Field(default=None)
+    translation_image_url: Optional[str] = Field(default=None)
+    word_audio_url: Optional[str] = Field(default=None)
+    speaker: str = Field(default='Vicki')
+
+    @property
+    def query_word(self) -> str:
+        return (
+            self.one_word_summary
+            if self.one_word_summary
+            else self.translations[0]
+        )
+
+
+class AnkiCardHTMLPreview(AnkiCard):
+    front: str
+    back: str
+    extra: str
+
+
+class AnkiCardCreator:
+    @staticmethod
+    def front(
+        card_contents: AnkiCardInfo,
+        audio: AnkiMedia,
+        path: str,
+        autoplay: bool = True,
+        style: str = '',
+    ) -> str:
+        autoplay_controls = 'autoplay' if autoplay else ''
+        return (
+            f'{card_contents.word}<br>'
+            f'<audio controls {autoplay_controls} src="{path}" style="{style}"></audio>'
+            if audio
+            else ''
+        )
+
+    @staticmethod
+    def back(
+        card_contents: AnkiCardInfo,
+        image: AnkiMedia,
+        path: str,
+        style: str = '',
+    ) -> str:
+        return (
+            ', '.join(card_contents.translations)
+            + (f'<br><img src="{path}" style="{style}">')
+            if image
+            else ''
+        )
+
+    @staticmethod
+    def extra(card_contents: AnkiCardInfo) -> str:
+        return (
+            f'{card_contents.extra}<br><br>'
+            f'Erklärung: {card_contents.definition}<br><br>'
+            'Beispiele:<br>'
+            f"{'<br>'.join([f'{ix+1}. {item}' for ix, item in enumerate(card_contents.examples)])}"
+        )
+
+    @staticmethod
+    def create(card_contents: AnkiCardInfo) -> AnkiCard:
+        audio = (
+            AnkiMedia(
+                anki_media_type=AnkiMediaType.AUDIO,
+                path=card_contents.word_audio_url,
+                extension='mp3',
+            )
+            if card_contents.word_audio_url
+            else None
+        )
+        image = (
+            AnkiMedia(
+                anki_media_type=AnkiMediaType.IMAGE,
+                path=card_contents.translation_image_url,
+                extension='jpg',
+            )
+            if card_contents.translation_image_url
+            else None
+        )
+        return AnkiCard(
+            front=AnkiCardCreator.front(card_contents, audio, audio.filename),
+            back=AnkiCardCreator.back(
+                card_contents, image, image.filename, style='max-width: 500px;'
+            ),
+            extra=AnkiCardCreator.extra(card_contents),
+            media=[audio, image],
+        )
+
+    @staticmethod
+    def html_preview(card_contents: AnkiCardInfo) -> AnkiCardHTMLPreview:
+        audio = (
+            AnkiMedia(
+                anki_media_type=AnkiMediaType.AUDIO,
+                path=card_contents.word_audio_url,
+                extension='mp3',
+            )
+            if card_contents.word_audio_url
+            else None
+        )
+        image = (
+            AnkiMedia(
+                anki_media_type=AnkiMediaType.IMAGE,
+                path=card_contents.translation_image_url,
+                extension='jpg',
+            )
+            if card_contents.translation_image_url
+            else None
+        )
+        return AnkiCardHTMLPreview(
+            front=AnkiCardCreator.front(
+                card_contents,
+                audio,
+                path=f'http://localhost:8501/app/{audio.path.relative_to(Path(germanki.__file__).parent)}',
+                autoplay=False,
+                style='width: 100%;',
+            ),
+            back=AnkiCardCreator.back(
+                card_contents,
+                image,
+                path=f'http://localhost:8501/app/{image.path.relative_to(Path(germanki.__file__).parent)}',
+            ),
+            extra=AnkiCardCreator.extra(card_contents),
+        )
 
 
 class ImageDownloader:
@@ -21,19 +161,17 @@ class ImageDownloader:
         page: int,
         per_page: int = 1,
     ) -> None:
-        pexels_api = PexelsAPI(pexels_api_key)
-        image_response = pexels_api.search_images(
+        pexels_client = PexelsClient(pexels_api_key)
+        search_response: SearchResponse = pexels_client.search_random_photo(
             query=query,
             per_page=per_page,
             page=page,
-            orientation='landscape',
+            orientation='square',
         )
-        if not image_response.success:
-            raise Exception()
+        response = requests.get(search_response.photos[0].src.medium)
 
-        response = requests.get(image_response.image_url)
-        if not response.status_code == 200:
-            raise Exception()
+        if response.status_code != 200 or not response.content:
+            raise Exception(f'Error downloading image: {response.status_code}')
 
         with open(file_path, 'wb') as file:
             file.write(response.content)
@@ -55,19 +193,24 @@ class MP3Downloader:
             raise Exception()
 
 
-@dataclass
-class CardResources:
-    image: Optional[str] = None
-    audio: Optional[str] = None
-
-
 class Germanki:
-    _cards: List[AnkiCard]
     _selected_speaker: str
+    _card_contents: List[AnkiCardInfo]
 
     def __init__(self, config: Config = Config()):
         self.config = config
         self.selected_speaker = self.default_speaker
+        self._card_contents = []
+
+    @property
+    def card_contents(self) -> List[AnkiCardInfo]:
+        return self._card_contents
+
+    @card_contents.setter
+    def card_contents(self, card_contents: List[AnkiCardInfo]):
+        self._card_contents = card_contents
+        for index in range(len(card_contents)):
+            self.update_card_media(index)
 
     @property
     def speakers(self) -> List[str]:
@@ -76,10 +219,6 @@ class Germanki:
     @property
     def default_speaker(self) -> List[str]:
         return str(self.config.default_speaker.value)
-
-    @property
-    def cards(self) -> List[AnkiCard]:
-        return self._cards
 
     @property
     def selected_speaker(self) -> str:
@@ -91,81 +230,32 @@ class Germanki:
             raise ValueError('Invalid speaker.')
         self._selected_speaker = speaker
 
-    @cards.setter
-    def cards(self, cards: str):
-        self._cards = []
-        cards_list = yaml.load(cards, Loader=yaml.Loader)
-        for card_obj in cards_list:
-            card = self.generate_card(
-                card_obj.get('front'),
-                card_obj.get('back'),
-                card_obj.get('extra'),
-            )
-            self._cards.append(card)
-
-    def refresh_card_images(self, index: int) -> None:
-        old_card = self.cards[index]
-        self.cards[index] = self.generate_card(
-            old_card.front, old_card.back, old_card.extra
-        )
-
-    def generate_card(
-        self, front: str, back: str, extra: Optional[str] = None
-    ) -> AnkiCard:
-        card = AnkiCard(
-            front=front,
-            back=back,
-            extra=extra,
-            card_speaker=self.selected_speaker,
-        )
-        image_path = self._get_image(card.back)
-        audio_path = self._get_tts_audio(card.front)
-        card.front_audio = (
-            audio_path
-            if self.config.audio_position
-            in [AudioPosition.FRONT, AudioPosition.BOTH]
-            else None
-        )
-        card.back_audio = (
-            audio_path
-            if self.config.audio_position
-            in [AudioPosition.BACK, AudioPosition.BOTH]
-            else None
-        )
-        card.front_image = (
-            image_path
-            if self.config.image_position
-            in [ImagePosition.FRONT, ImagePosition.BOTH]
-            else None
-        )
-        card.back_image = (
-            image_path
-            if self.config.image_position
-            in [ImagePosition.BACK, ImagePosition.BOTH]
-            else None
-        )
-        return card
+    def update_card_media(self, index: int) -> None:
+        card = self._card_contents[index]
+        card.translation_image_url = self._get_image(card.query_word)
+        card.word_audio_url = self._get_tts_audio(card.word)
 
     def create_cards(self, deck_name: str):
-        anki_api = AnkiAPI()
-        for card in self.cards:
+        anki_client = AnkiConnectClient()
+        for card_contents in self._card_contents:
+            card = AnkiCardCreator.create(card_contents)
             self._create_card(
-                deck_name=deck_name, anki_api=anki_api, anki_card=card
+                deck_name=deck_name, anki_client=anki_client, anki_card=card
             )
 
     def _create_card(
         self,
         deck_name: str,
-        anki_api: AnkiAPI,
-        anki_card: AnkiCard,
+        anki_client: AnkiConnectClient,
+        anki_card: AnkiCardInfo,
     ):
-        anki_api.add_card(
+        anki_client.add_card(
             deck_name=deck_name,
             anki_card=anki_card,
         )
 
-    def _get_image(self, query: str) -> Optional[Path]:
-        page = randint(1, 100)
+    def _get_image(self, query: str, max_pages: int = 100) -> Optional[Path]:
+        page = randint(1, max_pages)
         image_path = self.config.image_filepath(
             Germanki.convert_query_to_filename(f'{query}_{page}', ext='jpg')
         )
@@ -179,7 +269,9 @@ class Germanki:
                 page=page,
             )
             return image_path
-        except:
+        except Exception as e:
+            print('exception', e)
+            print()
             return None
 
     def _get_tts_audio(self, query: str) -> Optional[Path]:

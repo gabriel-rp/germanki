@@ -5,7 +5,7 @@ from typing import List
 
 from pydantic.dataclasses import Field, dataclass
 
-from germanki.data import audio, image
+from germanki.static import audio, image
 
 
 class ImagePosition(Enum):
@@ -33,6 +33,10 @@ class Config:
     pexels_api_key: str = Field(
         default=os.environ.get('PEXELS_API_KEY', ''),
         description='Pexels API key necessary to search and download images',
+    )
+    openai_api_key: str = Field(
+        default=os.environ.get('OPENAI_API_KEY', ''),
+        description='OpenAI API key necessary to generate card contents using ChatGPT',
     )
     audio_downloads_folder: Path = Field(default=Path(audio.__file__).parent)
     image_downloads_folder: Path = Field(default=Path(image.__file__).parent)

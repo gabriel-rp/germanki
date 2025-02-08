@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional
@@ -7,8 +8,15 @@ import yaml
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
-from germanki.core import Germanki
-from germanki.data import input_examples
+from germanki.chatgpt import WEB_UI_CHATGPT_PROMPT, ChatGPTAPI
+from germanki.config import Config
+from germanki.core import (
+    AnkiCardCreator,
+    AnkiCardHTMLPreview,
+    AnkiCardInfo,
+    Germanki,
+)
+from germanki.static import audio, input_examples
 
 
 class RefreshOption(Enum):
@@ -17,130 +25,244 @@ class RefreshOption(Enum):
     NO_REFRESH = 'NO_REFRESH'
 
 
-@dataclass
-class PreviewRefreshConfig:
-    option: RefreshOption = Field(default=RefreshOption.ALL)
-    selected_index: Optional[int] = None
-    card_inputs: Optional[str] = None
-    selected_speaker_input: Optional[str] = None
-
-    def reset(self):
-        self.option = RefreshOption.ALL
-        self.selected_index = None
-
-
-class UIController:
-    preview_refresh_config: PreviewRefreshConfig
-    _PAGE_HEIGHT = 500
-
-    def __init__(self, preview_columns: int = 3):
-        self._germanki = Germanki()
-        self.preview_refresh_config = None
-        self.preview_columns = preview_columns
+class InputSource(Enum):
+    CHATGPT = 'ChatGPT'
+    MANUAL = 'Manual'
 
     @staticmethod
-    def default_input_text() -> str:
+    def from_str(input_source_text: str) -> 'InputSource':
+        for item in list(InputSource):
+            if item.value == input_source_text:
+                return item
+        raise ValueError('Invalid input source')
+
+
+@dataclass
+class PreviewRefreshConfig:
+    option: RefreshOption = Field(default=RefreshOption.NO_REFRESH)
+    selected_index: Optional[int] = None
+
+
+class InputSourceHandlerException(Exception):
+    pass
+
+
+class InvalidManualInputException(InputSourceHandlerException):
+    pass
+
+
+class OpenAPIKeyNotProvided(InputSourceHandlerException):
+    pass
+
+
+class InputSourceUIHandler(ABC):
+    @abstractmethod
+    def parse(self, input_text: str) -> List[AnkiCardInfo]:
+        pass
+
+    @abstractmethod
+    def create_input_field(self, window_height: int):
+        pass
+
+
+class ChatGPTUIHandler(InputSourceUIHandler):
+    def __init__(self, openai_api_key: str):
+        self.openai_api_key = openai_api_key
+        if not self.openai_api_key:
+            raise OpenAPIKeyNotProvided('OpenAI API key not provided')
+        self.chatgpt_api = ChatGPTAPI(openai_api_key)
+
+    def parse(self, input_text: str) -> List[AnkiCardInfo]:
+        card_content_collection = self.chatgpt_api.query(input_text)
+        return card_content_collection.card_contents
+
+    def _default_chatgpt_prompt(self) -> str:
+        return 'Hund\nMann\nFrau'
+
+    def create_input_field(self, window_height: int):
+        with st.expander('ChatGPT Input', expanded=True):
+            return st.text_area(
+                'Enter your words/expressions, one in each line, and ChatGPT will generate the cards for you.',
+                value=self._default_chatgpt_prompt(),
+                height=window_height,
+            )
+
+
+class ManualInputUIHandler(InputSourceUIHandler):
+    def parse(self, input_text: str) -> List[AnkiCardInfo]:
+        if len(input_text) == 0:
+            raise InvalidManualInputException('No input provided.')
+
+        try:
+            cards_list = yaml.load(input_text, Loader=yaml.Loader)
+        except:
+            raise InvalidManualInputException('Invalid YAML input.')
+
+        return [AnkiCardInfo(**card_content) for card_content in cards_list]
+
+    def _default_manual_input(self) -> str:
         return (
             Path(input_examples.__file__).parent / 'default.yaml'
         ).read_text()
 
+    def create_input_field(self, window_height: int):
+        with st.expander(
+            'Use this ChatGPT prompt for the free web version',
+            expanded=False,
+            icon='⚠️',
+        ):
+            st.markdown(
+                'Go to [ChatGPT](https://chatgpt.com/), and paste the prompt below.\n'
+                'Give it the words you want to create cards for afterwards.'
+            )
+            st.markdown(f'```\n{WEB_UI_CHATGPT_PROMPT}\n```')
+        with st.expander('Manual Input', expanded=True):
+            return st.text_area(
+                'YAML-formatted list with fields `word`, `translations`, `extra`, `definition`, `examples`, `one_word_summary`',
+                value=self._default_manual_input(),
+                height=window_height,
+            )
+
+
+class UIController:
+    _germanki: Germanki
+    _config: Config
+    _refresh_config: PreviewRefreshConfig
+    _input_source: InputSource
+    ui_handler: InputSourceUIHandler
+    preview_columns: int
+    fallback_input_source: InputSource
+
+    def __init__(
+        self,
+        default_input_source: InputSource,
+        preview_columns: int = 3,
+        fallback_input_source: InputSource = InputSource.MANUAL,
+    ):
+        self._config = Config()
+        self._germanki = Germanki(self.config)
+        self.preview_columns = preview_columns
+        try:
+            self.input_source = default_input_source
+        except:
+            self.input_source = fallback_input_source
+
+        # ensures nothing is refreshed at first
+        self._refresh_config = self._refresh_nothing_config()
+
     @property
-    def page_height(self) -> int:
-        return UIController._PAGE_HEIGHT
+    def config(self) -> Config:
+        return self._config
+
+    @config.setter
+    def config(self, config: Config):
+        self._config = config
+        self._germanki.config = config
+
+    @property
+    def input_source(self) -> InputSource:
+        st.warning(f'input_source {self._input_source}')
+        return self._input_source
+
+    @input_source.setter
+    def input_source(self, input_source: InputSource):
+        if input_source == InputSource.CHATGPT:
+            try:
+                self.ui_handler = ChatGPTUIHandler(self._config.openai_api_key)
+            except OpenAPIKeyNotProvided:
+                raise OpenAPIKeyNotProvided(
+                    "OpenAI API key not provided. Can't use ChatGPT input mode."
+                )
+        elif input_source == InputSource.MANUAL:
+            self.ui_handler = ManualInputUIHandler()
+        else:
+            st.warning(f'Invalid input source {input_source}.\n')
+
+        self._input_source = input_source
+
+    @property
+    def default_window_height(self) -> int:
+        return 400
 
     @property
     def speakers(self) -> List[str]:
         return self._germanki.speakers
 
     @property
-    def selected_speaker(self) -> List[str]:
+    def selected_speaker(self) -> str:
         return self._germanki.selected_speaker
 
-    def refresh_preview_action(self):
-        if self.preview_refresh_config is not None:
-            self.refresh_preview(self.preview_refresh_config)
-            self.preview_refresh_config = None
+    def _refresh_all_config(self) -> PreviewRefreshConfig:
+        return PreviewRefreshConfig(RefreshOption.ALL)
 
-    def preview_cards_action(
-        self, cards_input: str, selected_speaker_input: str
-    ):
-        if len(cards_input) == 0:
-            st.warning('Please provide card contents.')
-            self.preview_refresh_config = PreviewRefreshConfig(
-                RefreshOption.NO_REFRESH
-            )
-            return
+    def _refresh_nothing_config(self) -> PreviewRefreshConfig:
+        return PreviewRefreshConfig(RefreshOption.NO_REFRESH)
+
+    def create_input_field(self):
+        return self.ui_handler.create_input_field(self.default_window_height)
+
+    def select_speaker_action(self, selected_speaker_input: str) -> None:
+        # TODO: play sample audio
         try:
-            yaml.load(cards_input, Loader=yaml.FullLoader)
-            self.preview_refresh_config = PreviewRefreshConfig(
-                RefreshOption.ALL,
-                card_inputs=cards_input,
-                selected_speaker_input=selected_speaker_input,
-            )
-        except:
-            st.warning('Invalid YAML input.')
+            self._germanki.selected_speaker = selected_speaker_input
+        except ValueError:
+            st.warning('Invalid speaker.')
+            raise
+            # self._refresh_nothing_config()
+        sample_audio_path = (
+            Path(audio.__file__).parent
+            / f'sample_{selected_speaker_input}.mp3'
+        )
+        if sample_audio_path.exists():
+            st.write('Sample audio:')
+            st.audio(sample_audio_path.read_bytes(), format='audio/mpeg')
+
+    def preview_cards_action(self, cards_input: str) -> None:
+        try:
+            card_contents = self.ui_handler.parse(cards_input)
+            self._germanki.card_contents = card_contents
+        except (InvalidManualInputException, InvalidManualInputException) as e:
+            st.warning(f'Please provide valid card contents. Error: {e}')
+            raise
+            # self._refresh_nothing_config()
+            # return
+
+        self._refresh_config = PreviewRefreshConfig(RefreshOption.ALL)
 
     def create_cards_action(self, deck_name: str):
         try:
             self.create_cards(deck_name)
         except Exception as e:
             st.warning(f'Error while adding cards. {e}')
-
-        self.preview_refresh_config = PreviewRefreshConfig(
-            RefreshOption.NO_REFRESH
-        )
-
-    def update_germanki_cards(
-        self, refresh_config: PreviewRefreshConfig
-    ) -> None:
-        if refresh_config.option == RefreshOption.NO_REFRESH:
-            return
-
-        if refresh_config.option == RefreshOption.SELECTED:
-            self._germanki.refresh_card_images(refresh_config.selected_index)
-            return
-
-        if refresh_config.option == RefreshOption.ALL:
-            self._germanki.selected_speaker = (
-                refresh_config.selected_speaker_input
-            )
-            self._germanki.cards = refresh_config.card_inputs
-            return
+            raise
+        self._refresh_nothing_config()
 
     def create_cards(self, deck_name: str):
         self._germanki.create_cards(deck_name)
 
-    def refresh_preview(self, refresh_config: PreviewRefreshConfig):
-        self.update_germanki_cards(refresh_config)
+    def refresh_preview(self):
         preview_cols = st.columns(self.preview_columns)
-        for index in range(len(self._germanki.cards)):
+        for index in range(len(self._germanki.card_contents)):
             with preview_cols[index % self.preview_columns]:
                 self.draw_card(index)
 
     def draw_card(self, index: int):
-        def set_selected_index() -> None:
-            self.preview_refresh_config = PreviewRefreshConfig(
-                option=RefreshOption.SELECTED, selected_index=index
-            )
+        card: AnkiCardHTMLPreview = AnkiCardCreator.html_preview(
+            self._germanki.card_contents[index]
+        )
 
-        def add_refresh_button(id: str) -> None:
+        def set_selected_index() -> None:
+            self._germanki.update_card_media(index)
+
+        def add_refresh_button() -> None:
             st.button(
-                f'Refresh Image',
+                f'Refresh Image ({self._germanki.card_contents[index].query_word})',
                 icon='🔄',
                 type='secondary',
-                key=f'refresh_images_{index}_{id}',
+                key=f'refresh_images_{index}',
                 on_click=set_selected_index,
                 use_container_width=True,
             )
-
-        def add_image_if_exists(image_path: str, id: str) -> None:
-            if image_path:
-                st.image(image_path)
-                add_refresh_button(id)
-
-        def add_audio_if_exists(audio) -> None:
-            if audio:
-                st.audio(audio)
 
         def section_divider_html(title: str) -> str:
             border_style = 'border-style: solid; border-width: 1px 1px 2px 1px; border-color: #f7d1d1; border-radius: 2px;'
@@ -154,7 +276,7 @@ class UIController:
 
         def card_part_contents_html(content: str) -> str:
             content_html = ''.join(
-                f'<span>{part}</span>'
+                f'<span>{part}</span><br>'
                 for part in content.split('\n')
                 if len(part.strip()) > 0
             )
@@ -164,25 +286,20 @@ class UIController:
             st.write(section_divider_html(text), unsafe_allow_html=True)
 
         def write_card_content(text: str) -> None:
-            st.write(card_part_contents_html(text), unsafe_allow_html=True)
+            st.markdown(card_part_contents_html(text), unsafe_allow_html=True)
 
         # Start of UI refresh
         with st.expander(
-            f'**Card {index+1} Preview**',
+            f'**Card {index+1}**',
             icon='📄',
             expanded=True,
         ):
+            add_refresh_button()
             write_section_divider('FRONT')
-            write_card_content(self._germanki.cards[index].front)
-            add_image_if_exists(
-                self._germanki.cards[index].front_image, 'front'
-            )
-            add_audio_if_exists(self._germanki.cards[index].front_audio)
+            write_card_content(card.front)
 
             write_section_divider('BACK')
-            write_card_content(self._germanki.cards[index].back)
-            add_image_if_exists(self._germanki.cards[index].back_image, 'back')
-            add_audio_if_exists(self._germanki.cards[index].back_audio)
+            write_card_content(card.back)
 
             write_section_divider('EXTRA')
-            write_card_content(self._germanki.cards[index].extra)
+            write_card_content(card.extra)
