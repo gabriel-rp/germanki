@@ -41,7 +41,9 @@ with columns[0]:
 
 # Other input and buttons
 with columns[1]:
-    with st.container(border=False, height=ui.default_window_height):
+    with st.container(
+        border=False, height=int(ui.default_window_height * 1.7)
+    ):
         deck_name = st.text_input('Deck Name', 'Germanki Deck')
         selected_speaker_input = st.selectbox(
             'Select Speaker:',
@@ -50,6 +52,12 @@ with columns[1]:
         )
         if selected_speaker_input:
             ui.select_speaker_action(selected_speaker_input)
+
+        with st.popover('Update API Keys', use_container_width=True):
+            pexels_api_key = st.text_input('Pexels API Key')
+            openai_api_key = st.text_input('OpenAI API Key')
+            if st.button('Update'):
+                ui.update_api_keys_action(pexels_api_key, openai_api_key)
 
         if st.button(
             'Preview Cards',

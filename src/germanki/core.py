@@ -1,3 +1,5 @@
+import os
+from operator import le
 from pathlib import Path
 from random import randint
 from typing import List, Optional
@@ -15,6 +17,10 @@ from germanki.anki_connect import (
 from germanki.config import Config
 from germanki.pexels import PexelsClient, SearchResponse
 from germanki.tts_mp3 import TTSAPI
+
+
+class MediaUpdateException(Exception):
+    pass
 
 
 class AnkiCardInfo(BaseModel):
@@ -117,36 +123,39 @@ class AnkiCardCreator:
 
     @staticmethod
     def html_preview(card_contents: AnkiCardInfo) -> AnkiCardHTMLPreview:
-        audio = (
-            AnkiMedia(
+        audio = None
+        image = None
+        audio_path = None
+        image_path = None
+        host = os.getenv('STREAMLIT_SERVER_ADDRESS', 'localhost')
+        port = os.getenv('STREAMLIT_SERVER_PORT', '8501')
+
+        if card_contents.word_audio_url:
+            audio = AnkiMedia(
                 anki_media_type=AnkiMediaType.AUDIO,
                 path=card_contents.word_audio_url,
                 extension='mp3',
             )
-            if card_contents.word_audio_url
-            else None
-        )
-        image = (
-            AnkiMedia(
+            audio_path = f'http://{host}:{port}/app/{audio.path.relative_to(Path(germanki.__file__).parent)}'
+        if card_contents.translation_image_url:
+            image = AnkiMedia(
                 anki_media_type=AnkiMediaType.IMAGE,
                 path=card_contents.translation_image_url,
                 extension='jpg',
             )
-            if card_contents.translation_image_url
-            else None
-        )
+            image_path = f'http://{host}:{port}/app/{image.path.relative_to(Path(germanki.__file__).parent)}'
         return AnkiCardHTMLPreview(
             front=AnkiCardCreator.front(
                 card_contents,
                 audio,
-                path=f'http://localhost:8501/app/{audio.path.relative_to(Path(germanki.__file__).parent)}',
+                path=audio_path,
                 autoplay=False,
                 style='width: 100%;',
             ),
             back=AnkiCardCreator.back(
                 card_contents,
                 image,
-                path=f'http://localhost:8501/app/{image.path.relative_to(Path(germanki.__file__).parent)}',
+                path=image_path,
             ),
             extra=AnkiCardCreator.extra(card_contents),
         )
@@ -232,8 +241,21 @@ class Germanki:
 
     def update_card_media(self, index: int) -> None:
         card = self._card_contents[index]
-        card.translation_image_url = self._get_image(card.query_word)
-        card.word_audio_url = self._get_tts_audio(card.word)
+
+        errors = []
+        try:
+            card.translation_image_url = self._get_image(card.query_word)
+        except Exception as e:
+            errors.append(e)
+        try:
+            card.word_audio_url = self._get_tts_audio(card.word)
+        except Exception as e:
+            errors.append(e)
+
+        if len(errors) > 0:
+            raise MediaUpdateException(
+                f'Could not update card media. Errors: {[str(error) for error in errors]}'
+            )
 
     def create_cards(self, deck_name: str):
         anki_client = AnkiConnectClient()
@@ -261,18 +283,14 @@ class Germanki:
         )
         if image_path.exists():
             return image_path
-        try:
-            ImageDownloader.download_image(
-                query,
-                pexels_api_key=self.config.pexels_api_key,
-                file_path=image_path,
-                page=page,
-            )
-            return image_path
-        except Exception as e:
-            print('exception', e)
-            print()
-            return None
+
+        ImageDownloader.download_image(
+            query,
+            pexels_api_key=self.config.pexels_api_key,
+            file_path=image_path,
+            page=page,
+        )
+        return image_path
 
     def _get_tts_audio(self, query: str) -> Optional[Path]:
         audio_path = self.config.audio_filepath(
@@ -287,7 +305,7 @@ class Germanki:
                 msg=query, lang=self.selected_speaker, file_path=audio_path
             )
             return audio_path
-        except:
+        except Exception as e:
             return None
 
     @staticmethod

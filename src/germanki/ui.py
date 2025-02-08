@@ -15,6 +15,7 @@ from germanki.core import (
     AnkiCardHTMLPreview,
     AnkiCardInfo,
     Germanki,
+    MediaUpdateException,
 )
 from germanki.static import audio, input_examples
 
@@ -126,7 +127,6 @@ class ManualInputUIHandler(InputSourceUIHandler):
 
 class UIController:
     _germanki: Germanki
-    _config: Config
     _refresh_config: PreviewRefreshConfig
     _input_source: InputSource
     ui_handler: InputSourceUIHandler
@@ -139,8 +139,7 @@ class UIController:
         preview_columns: int = 3,
         fallback_input_source: InputSource = InputSource.MANUAL,
     ):
-        self._config = Config()
-        self._germanki = Germanki(self.config)
+        self._germanki = Germanki(Config())
         self.preview_columns = preview_columns
         try:
             self.input_source = default_input_source
@@ -151,15 +150,6 @@ class UIController:
         self._refresh_config = self._refresh_nothing_config()
 
     @property
-    def config(self) -> Config:
-        return self._config
-
-    @config.setter
-    def config(self, config: Config):
-        self._config = config
-        self._germanki.config = config
-
-    @property
     def input_source(self) -> InputSource:
         st.warning(f'input_source {self._input_source}')
         return self._input_source
@@ -168,7 +158,9 @@ class UIController:
     def input_source(self, input_source: InputSource):
         if input_source == InputSource.CHATGPT:
             try:
-                self.ui_handler = ChatGPTUIHandler(self._config.openai_api_key)
+                self.ui_handler = ChatGPTUIHandler(
+                    self._germanki.config.openai_api_key
+                )
             except OpenAPIKeyNotProvided:
                 raise OpenAPIKeyNotProvided(
                     "OpenAI API key not provided. Can't use ChatGPT input mode."
@@ -201,6 +193,14 @@ class UIController:
     def create_input_field(self):
         return self.ui_handler.create_input_field(self.default_window_height)
 
+    def update_api_keys_action(
+        self, pexels_api_key: str, openai_api_key: str
+    ) -> None:
+        if pexels_api_key:
+            self._germanki.config.pexels_api_key = pexels_api_key
+        if openai_api_key:
+            self._germanki.config.openai_api_key = openai_api_key
+
     def select_speaker_action(self, selected_speaker_input: str) -> None:
         # TODO: play sample audio
         try:
@@ -208,7 +208,6 @@ class UIController:
         except ValueError:
             st.warning('Invalid speaker.')
             raise
-            # self._refresh_nothing_config()
         sample_audio_path = (
             Path(audio.__file__).parent
             / f'sample_{selected_speaker_input}.mp3'
@@ -223,9 +222,8 @@ class UIController:
             self._germanki.card_contents = card_contents
         except (InvalidManualInputException, InvalidManualInputException) as e:
             st.warning(f'Please provide valid card contents. Error: {e}')
-            raise
-            # self._refresh_nothing_config()
-            # return
+        except MediaUpdateException as e:
+            st.warning(f'Could not update card media. Error: {e}')
 
         self._refresh_config = PreviewRefreshConfig(RefreshOption.ALL)
 
@@ -252,7 +250,10 @@ class UIController:
         )
 
         def set_selected_index() -> None:
-            self._germanki.update_card_media(index)
+            try:
+                self._germanki.update_card_media(index)
+            except Exception as e:
+                st.warning(f'Could not add media to card. Error: {e}')
 
         def add_refresh_button() -> None:
             st.button(

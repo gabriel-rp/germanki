@@ -1,10 +1,15 @@
 [tool.poetry]
 name = "germanki"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = ["Gabriel R. Pereira"]
 readme = "README.md"
 packages = [{include = "germanki", from="src"}]
+include = [
+    "germanki/.streamlit/**",
+    "germanki/input_examples/**",
+    "germanki/static/audio/sample_*.mp3",
+]
 
 [tool.poetry.scripts]
 germanki = "germanki.__main__:main"
