@@ -1,13 +1,15 @@
 name: Tag and Release
 
 on:
-  - push
+  push:
+    branches:
+      - main
+      - pypi
 
 jobs:
   tag:
     name: Check version and tags
     runs-on: ubuntu-latest
-    needs: push
 
     steps:
       - name: Checkout repository
