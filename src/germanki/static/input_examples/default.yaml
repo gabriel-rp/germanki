@@ -1,0 +1,16 @@
+- word: Hund
+  translations:
+    - dog
+  extra: der Hund, die Hunde
+  definition: Ein Tier, das oft als Haustier gehalten wird.
+  examples:
+    - Mein Hund spielt im Garten.
+  one_word_summary: dog
+
+- word: Stuhl
+  translations:
+    - chair
+  extra: der Stuhl, die Stühle
+  definition: Ein Möbelstück, auf dem man sitzt.
+  examples:
+    - Der Stuhl ist sehr bequem.

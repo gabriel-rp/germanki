@@ -1,42 +1,71 @@
 import streamlit as st
 
-from germanki.ui import UIController
-
-# Important state
-if 'ui' not in st.session_state:
-    st.session_state['ui'] = UIController()
-ui = st.session_state['ui']
+from germanki.ui import InputSource, OpenAPIKeyNotProvided, UIController
 
 # UI
 st.set_page_config(page_title='GermAnki', layout='wide', page_icon='🦠')
 st.title('GermAnki 🦠')
 columns = st.columns(spec=[3, 2, 7])
 
+st.markdown(
+    """
+<style>
+    .stMainBlockContainer {
+        padding: 40px;
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+# Important state
+if 'ui' not in st.session_state:
+    st.session_state['ui'] = UIController(InputSource.CHATGPT)
+ui: UIController = st.session_state['ui']
+
 # Card Data Input
 with columns[0]:
-    cards_input = st.text_area(
-        'YAML-formatted list with fields `front`, `back`, `extra`',
-        value=ui.default_input_text(),
-        height=ui.page_height,
+    input_method = st.radio(
+        'Input Mode',
+        options=[item.value for item in InputSource],
+        horizontal=True,
     )
 
-# Parameters & Buttons
+    if input_method:
+        try:
+            ui.input_source = InputSource.from_str(input_method)
+        except Exception as e:
+            st.warning(e)
+
+    input_field = ui.create_input_field()
+
+# Other input and buttons
 with columns[1]:
-    with st.container(border=False, height=ui.page_height):
+    with st.container(border=False, height=ui.default_window_height):
         deck_name = st.text_input('Deck Name', 'Germanki Deck')
         selected_speaker_input = st.selectbox(
             'Select Speaker:',
             ui.speakers,
-            index=ui.speakers.index(ui.selected_speaker),
+            placeholder='Choose a speaker',
         )
+        if selected_speaker_input:
+            ui.select_speaker_action(selected_speaker_input)
 
-        if st.button('Preview Cards', icon='👀', type='primary'):
-            ui.preview_cards_action(cards_input, selected_speaker_input)
+        if st.button(
+            'Preview Cards',
+            key='preview_chatgpt_input',
+            icon='👀',
+            type='primary',
+            use_container_width=True,
+        ):
+            ui.preview_cards_action(input_field)
 
-        if st.button('Create Cards', icon='➕', type='primary'):
+        if st.button(
+            'Create Cards', icon='➕', type='primary', use_container_width=True
+        ):
             ui.create_cards_action(deck_name)
 
 # Preview
 with columns[2]:
     with st.container(border=False):
-        ui.refresh_preview_action()
+        ui.refresh_preview()

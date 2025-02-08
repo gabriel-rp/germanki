@@ -5,3 +5,11 @@
 
 # Python
 __pycache__/
+coverage.xml
+.coverage
+
+# Build
+dist/
+build/
+
+--collect-submodules
