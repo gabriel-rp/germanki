@@ -11,5 +11,3 @@ coverage.xml
 # Build
 dist/
 build/
-
---collect-submodules
