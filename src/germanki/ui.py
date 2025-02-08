@@ -8,7 +8,7 @@ import yaml
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
-from germanki.chatgpt import ChatGPTAPI
+from germanki.chatgpt import WEB_UI_CHATGPT_PROMPT, ChatGPTAPI
 from germanki.config import Config
 from germanki.core import (
     AnkiCardCreator,
@@ -16,7 +16,6 @@ from germanki.core import (
     AnkiCardInfo,
     Germanki,
 )
-from germanki.logging import logger
 from germanki.static import audio, input_examples
 
 
@@ -107,6 +106,16 @@ class ManualInputUIHandler(InputSourceUIHandler):
         ).read_text()
 
     def create_input_field(self, window_height: int):
+        with st.expander(
+            'Use this ChatGPT prompt for the free web version',
+            expanded=False,
+            icon='⚠️',
+        ):
+            st.markdown(
+                'Go to [ChatGPT](https://chatgpt.com/), and paste the prompt below.\n'
+                'Give it the words you want to create cards for afterwards.'
+            )
+            st.markdown(f'```\n{WEB_UI_CHATGPT_PROMPT}\n```')
         with st.expander('Manual Input', expanded=True):
             return st.text_area(
                 'YAML-formatted list with fields `word`, `translations`, `extra`, `definition`, `examples`, `one_word_summary`',

@@ -81,7 +81,7 @@ class AnkiCardCreator:
     def extra(card_contents: AnkiCardInfo) -> str:
         return (
             f'{card_contents.extra}<br><br>'
-            f'Erklärung: {card_contents.definition}<br>'
+            f'Erklärung: {card_contents.definition}<br><br>'
             'Beispiele:<br>'
             f"{'<br>'.join([f'{ix+1}. {item}' for ix, item in enumerate(card_contents.examples)])}"
         )

@@ -1,5 +1,6 @@
 import json
 import pickle
+from pathlib import Path
 from typing import List
 
 import yaml
@@ -7,6 +8,7 @@ from openai import OpenAI
 from pydantic import BaseModel
 
 from germanki.core import AnkiCardInfo
+from germanki.static import input_examples
 
 
 class AnkiCardContentsCollection(BaseModel):
@@ -23,6 +25,14 @@ For each line of input with a german word/expression, you will:
 - Provide two example sentences using A2-level vocabulary.
 - List translations in order from most to least accurate (2–4 words each).
 """
+
+WEB_UI_CHATGPT_PROMPT = (
+    CHATGPT_PROMPT
+    + f"""
+Provide all the answer in a YAML format. Here's an example of the expected output:
+{(Path(input_examples.__file__).parent / 'default.yaml').read_text()}
+"""
+)
 
 
 class ChatGPTAPI:
