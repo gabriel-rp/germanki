@@ -1,15 +1,54 @@
-name: Tag and Release
+name: CI/CD Pipeline
 
 on:
-  push:
-    branches:
-      - main
-      - pypi
+  - push
 
 jobs:
-  tag:
-    name: Check version and tags
+  unit_tests:
     runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read Python version
+        id: python_version
+        run: echo "PYTHON_VERSION=$(cat .python-version)" >> $GITHUB_ENV
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Run tests with coverage
+        run: poetry run pytest tests/unit --cov=. --cov-branch --cov-report=xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  release:
+    name: Tags and releases
+    runs-on: ubuntu-latest
+    needs: unit_tests
 
     steps:
       - name: Checkout repository
@@ -55,10 +94,13 @@ jobs:
           git push origin v${{ env.version }}
 
       - name: Configure PyPI
+        if: github.ref == 'refs/heads/main'
         run: poetry config pypi-token.pypi ${{ secrets.PYPI_API_TOKEN }}
 
       - name: Build package
+        if: github.ref == 'refs/heads/main'
         run: poetry build
 
       - name: Publish package to PyPI
+        if: github.ref == 'refs/heads/main'
         run: poetry publish
