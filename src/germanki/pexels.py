@@ -12,7 +12,7 @@ from tenacity import (
 
 
 class PhotoSource(BaseModel):
-    medium: str
+    large2x: str
 
 
 class PhotoInfo(BaseModel):
@@ -21,6 +21,7 @@ class PhotoInfo(BaseModel):
 
 class SearchResponse(BaseModel):
     photos: List[PhotoInfo]
+    total_results: int
 
 
 class PexelsAPIError(Exception):
@@ -43,6 +44,12 @@ class PexelsAuthenticationError(PexelsAPIError):
 
 class PexelsNotFoundError(PexelsAPIError):
     """Raised when a requested resource is not found."""
+
+    pass
+
+
+class PexelsNoResultsError(PexelsAPIError):
+    """Raised when no results are found for a search query."""
 
     pass
 
@@ -110,7 +117,7 @@ class PexelsClient:
             },
         )
         if data.get('total_results', 0) == 0:
-            raise PexelsNotFoundError(
+            raise PexelsNoResultsError(
                 f"There are no photos for search term '{query}'."
             )
 
@@ -118,4 +125,4 @@ class PexelsClient:
         if not photos:
             raise PexelsNotFoundError('No photos found.')
 
-        return SearchResponse(photos=photos)
+        return SearchResponse(**data)

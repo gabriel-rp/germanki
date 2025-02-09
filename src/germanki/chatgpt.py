@@ -122,9 +122,6 @@ class ChatGPTAPI:
             },
         )
 
-        with open('save.pkl', 'wb') as f:
-            f.write(pickle.dumps(completion.choices[0].message.content))
-
         return AnkiCardContentsCollection(
             **json.loads(completion.choices[0].message.content)
         )

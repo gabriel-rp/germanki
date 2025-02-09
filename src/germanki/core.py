@@ -15,7 +15,12 @@ from germanki.anki_connect import (
     AnkiMediaType,
 )
 from germanki.config import Config
-from germanki.pexels import PexelsClient, SearchResponse
+from germanki.pexels import (
+    PexelsClient,
+    PexelsNoResultsError,
+    PexelsNotFoundError,
+    SearchResponse,
+)
 from germanki.tts_mp3 import TTSAPI
 
 
@@ -62,8 +67,7 @@ class AnkiCardCreator:
         style: str = '',
     ) -> str:
         autoplay_controls = 'autoplay' if autoplay else ''
-        return (
-            f'{card_contents.word}<br>'
+        return f'{card_contents.word}<br>' + (
             f'<audio controls {autoplay_controls} src="{path}" style="{style}"></audio>'
             if audio
             else ''
@@ -76,11 +80,8 @@ class AnkiCardCreator:
         path: str,
         style: str = '',
     ) -> str:
-        return (
-            ', '.join(card_contents.translations)
-            + (f'<br><img src="{path}" style="{style}">')
-            if image
-            else ''
+        return ', '.join(card_contents.translations) + (
+            f'<br><img src="{path}" style="{style}">' if image else ''
         )
 
     @staticmethod
@@ -159,31 +160,6 @@ class AnkiCardCreator:
             ),
             extra=AnkiCardCreator.extra(card_contents),
         )
-
-
-class ImageDownloader:
-    @staticmethod
-    def download_image(
-        query: str,
-        pexels_api_key: str,
-        file_path: Path,
-        page: int,
-        per_page: int = 1,
-    ) -> None:
-        pexels_client = PexelsClient(pexels_api_key)
-        search_response: SearchResponse = pexels_client.search_random_photo(
-            query=query,
-            per_page=per_page,
-            page=page,
-            orientation='square',
-        )
-        response = requests.get(search_response.photos[0].src.medium)
-
-        if response.status_code != 200 or not response.content:
-            raise Exception(f'Error downloading image: {response.status_code}')
-
-        with open(file_path, 'wb') as file:
-            file.write(response.content)
 
 
 class MP3Downloader:
@@ -283,13 +259,32 @@ class Germanki:
         )
         if image_path.exists():
             return image_path
+        try:
+            pexels_client = PexelsClient(self.config.pexels_api_key)
+            search_response: SearchResponse = (
+                pexels_client.search_random_photo(
+                    query=query,
+                    per_page=1,
+                    page=page,
+                    orientation='square',
+                )
+            )
+            if search_response.total_results == 0:
+                raise
+        except (PexelsNotFoundError):
+            if page > int(page / 2):
+                return self._get_image(query=query, max_pages=int(page / 2))
+            if page == 1:
+                raise
 
-        ImageDownloader.download_image(
-            query,
-            pexels_api_key=self.config.pexels_api_key,
-            file_path=image_path,
-            page=page,
-        )
+        response = requests.get(search_response.photos[0].src.large2x)
+
+        if response.status_code != 200 or not response.content:
+            raise Exception(f'Error downloading image: {response.status_code}')
+
+        with open(image_path, 'wb') as file:
+            file.write(response.content)
+
         return image_path
 
     def _get_tts_audio(self, query: str) -> Optional[Path]:
