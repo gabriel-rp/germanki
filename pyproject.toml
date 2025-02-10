@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "germanki"
-version = "0.2.3"
+version = "0.2.4"
 description = ""
 authors = ["Gabriel R. Pereira"]
 readme = "README.md"
@@ -17,11 +17,9 @@ include = [
 germanki = "germanki.__main__:main"
 
 [tool.poetry.dependencies]
-python = "3.11.11"
-pre-commit = "^4.1.0"
+python = ">=3.9,<3.9.7 || >3.9.7,<=3.12"
 streamlit = "^1.41.1"
 pydantic = "^2.10.6"
-watchdog = "^6.0.0"
 openai = "^1.61.0"
 ratelimit = "^2.2.1"
 tenacity = "^9.0.0"
@@ -31,6 +29,8 @@ pytest = "^8.3.4"
 coverage = "^7.6.10"
 pytest-cov = "^6.0.0"
 requests-mock = "^1.12.1"
+pre-commit = "^4.1.0"
+watchdog = "^6.0.0"
 
 [build-system]
 requires = ["poetry-core"]
