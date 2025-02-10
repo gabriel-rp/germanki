@@ -1,8 +1,10 @@
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from germanki.config import Config
 from germanki.core import (
     AnkiCardCreator,
     AnkiCardInfo,
@@ -32,7 +34,8 @@ def anki_card_creator():
 
 @pytest.fixture
 def germanki_instance():
-    return Germanki()
+    config = Config(pexels_api_key='test_key', openai_api_key='test_key')
+    return Germanki(config)
 
 
 @patch('germanki.tts_mp3.TTSAPI.request_tts')
