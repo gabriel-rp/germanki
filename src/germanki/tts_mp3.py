@@ -25,6 +25,7 @@ class TTSAPI:
             'Content-Type': 'application/x-www-form-urlencoded',
         }
 
+    # TODO: better error handling
     def request_tts(self, msg: str, lang: str) -> TTSResponse:
         url = f'{self.base_url}/makemp3_new.php'
         response = requests.post(
@@ -56,6 +57,7 @@ class TTSAPI:
             error_message=f'Failed with status code {response.status_code}',
         )
 
+    # TODO: better error handling
     def download_mp3(self, mp3_url: str, file_path: Path) -> bool:
         url = f'{self.base_url}/dlmp3.php'
         response = requests.get(
