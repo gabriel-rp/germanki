@@ -37,18 +37,14 @@ class AnkiCardInfo(BaseModel):
     definition: str
     examples: List[str]
     extra: str
-    one_word_summary: Optional[str] = Field(default=None)
+    image_query: Optional[str] = Field(default=None)
     translation_image_url: Optional[str] = Field(default=None)
     word_audio_url: Optional[str] = Field(default=None)
     speaker: str = Field(default='Vicki')
 
     @property
     def query_word(self) -> str:
-        return (
-            self.one_word_summary
-            if self.one_word_summary
-            else self.translations[0]
-        )
+        return self.image_query if self.image_query else self.translations[0]
 
 
 class AnkiCardHTMLPreview(AnkiCard):
@@ -113,13 +109,20 @@ class AnkiCardCreator:
             if card_contents.translation_image_url
             else None
         )
+        image_filename = image.filename if image else None
+        audio_filename = audio.filename if audio else None
+        media = []
+        if image:
+            media.append(image)
+        if audio:
+            media.append(audio)
         return AnkiCard(
-            front=AnkiCardCreator.front(card_contents, audio, audio.filename),
+            front=AnkiCardCreator.front(card_contents, audio, audio_filename),
             back=AnkiCardCreator.back(
-                card_contents, image, image.filename, style='max-width: 500px;'
+                card_contents, image, image_filename, style='max-width: 500px;'
             ),
             extra=AnkiCardCreator.extra(card_contents),
-            media=[audio, image],
+            media=media,
         )
 
     @staticmethod
@@ -301,7 +304,7 @@ class Germanki:
             )
             return audio_path
         except Exception as e:
-            return None
+            raise e
 
     @staticmethod
     def convert_query_to_filename(query: str, ext: str) -> str:

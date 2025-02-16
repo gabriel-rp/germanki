@@ -119,7 +119,7 @@ class ManualInputUIHandler(InputSourceUIHandler):
             st.markdown(f'```\n{WEB_UI_CHATGPT_PROMPT}\n```')
         with st.expander('Manual Input', expanded=True):
             return st.text_area(
-                'YAML-formatted list with fields `word`, `translations`, `extra`, `definition`, `examples`, `one_word_summary`',
+                'YAML-formatted list with fields `word`, `translations`, `extra`, `definition`, `examples`, `image_query`',
                 value=self._default_manual_input(),
                 height=window_height,
             )

@@ -1,4 +1,5 @@
 import base64
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -67,7 +68,10 @@ class AnkiConnectClient:
         port: int = 8765,
         version: int = 6,
         timeout: int = 5,
-        default_tags: List[str] = ['automated'],
+        default_tags: List[str] = [
+            'automated',
+            datetime.now().strftime('%Y-%m-%d'),
+        ],
     ):
         self.base_url = f'{host}:{port}'
         self.version = version

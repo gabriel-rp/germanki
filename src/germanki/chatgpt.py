@@ -79,7 +79,7 @@ class ChatGPTAPI:
                                         'translations',
                                         'examples',
                                         'extra',
-                                        'one_word_summary',
+                                        'image_query',
                                     ],
                                     'additionalProperties': False,
                                     'properties': {
@@ -109,8 +109,8 @@ class ChatGPTAPI:
                                             'description': 'Gender/plural or Perfekt (for verbs)',
                                             'type': 'string',
                                         },
-                                        'one_word_summary': {
-                                            'description': 'A single English word one could use to search an image that best describes the original word',
+                                        'image_query': {
+                                            'description': 'A search query one could use to find an image that best describes the original word. The less words, the better.',
                                             'type': 'string',
                                         },
                                     },
