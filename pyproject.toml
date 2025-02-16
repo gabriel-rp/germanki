@@ -32,6 +32,9 @@ requests-mock = "^1.12.1"
 pre-commit = "^4.1.0"
 watchdog = "^6.0.0"
 
+[tool.coverage.report]
+fail_under = 80
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
