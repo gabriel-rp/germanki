@@ -16,7 +16,7 @@ from germanki.anki_connect import (
 
 @pytest.fixture()
 def anki_client():
-    return AnkiConnectClient()
+    return AnkiConnectClient(default_tags=['automated'])
 
 
 @pytest.fixture()
@@ -53,7 +53,7 @@ def test_card_with_media():
 
 
 def test_anki_connect_client_init():
-    client = AnkiConnectClient()
+    client = AnkiConnectClient(default_tags=['automated'])
     assert client.base_url == 'http://localhost:8765'
     assert client.timeout == 5
     assert client.default_tags == ['automated']
