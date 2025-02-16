@@ -67,16 +67,20 @@ class AnkiConnectClient:
         port: int = 8765,
         version: int = 6,
         timeout: int = 5,
-        default_tags: List[str] = [
-            'automated',
-            datetime.now().strftime('%Y-%m-%d'),
-        ],
+        default_tags: List[str] = None,
     ):
         self.base_url = f'{host}:{port}'
         self.version = version
         self.timeout = timeout
         self.session = None
-        self.default_tags = default_tags
+        self.default_tags = (
+            default_tags
+            if default_tags
+            else [
+                'automated',
+                datetime.now().strftime('%Y-%m-%d'),
+            ]
+        )
 
     def _request(
         self, action: str, params: Optional[Dict[str, Any]] = None
