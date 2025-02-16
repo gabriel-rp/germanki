@@ -17,19 +17,16 @@ ENV PATH="${PATH}:/root/.local/bin"
 WORKDIR /app
 
 # Copies package
-# not optimized for caching
 COPY poetry.lock /app
 COPY pyproject.toml /app
 COPY README.md README.md
 COPY src/ src/
 
-# Configure poetry to use base Python
+# Configure poetry to use base Python and installs package
 RUN poetry config virtualenvs.create false \
     && poetry env use system \
-    && poetry env info
-
-# Install package
-RUN poetry install --only main
+    && poetry env info \
+    && poetry install
 
 # Run Streamlit
 WORKDIR /app/src
