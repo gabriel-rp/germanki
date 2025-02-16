@@ -7,7 +7,6 @@ from germanki.anki_connect import (
     AnkiCard,
     AnkiConnectClient,
     AnkiConnectDeckNotExistsError,
-    AnkiConnectRequestError,
     AnkiConnectResponseError,
     AnkiMedia,
     AnkiMediaType,
@@ -104,6 +103,43 @@ def test_add_card_with_custom_tags(
     payload = mock_post.call_args[1]['json']
     assert 'tag1' in payload['params']['note']['tags']
     assert 'tag2' in payload['params']['note']['tags']
+
+
+@patch('requests.Session.post')
+def test_add_card_with_media_file_not_found(
+    mock_post, anki_client: AnkiConnectClient, deck_name, test_card_with_media
+):
+    mock_post.return_value.status_code = 200
+    mock_post.return_value.json.return_value = {'result': None}
+    with pytest.raises(FileNotFoundError):
+        anki_client.add_card(deck_name, test_card_with_media)
+
+
+@patch('pathlib.Path.exists')
+@patch('requests.Session.post')
+@patch('pathlib.Path.read_bytes')
+def test_add_card_with_media_file_not_found(
+    mock_read_bytes,
+    mock_post,
+    mock_exists,
+    anki_client: AnkiConnectClient,
+    deck_name,
+    test_card_with_media,
+):
+    mock_exists.return_value = True
+    mock_read_bytes.return_value = b'image_data'
+    mock_post.return_value.status_code = 200
+    mock_post.return_value.json.return_value = {'result': None}
+    anki_client.add_card(deck_name, test_card_with_media)
+    actions = [
+        call_cargs[1]['json']['action']
+        for call_cargs in mock_post.call_args_list
+    ]
+    assert 'deckNames' in actions
+    assert 'createDeck' in actions
+    assert 'addNote' in actions
+    assert 'storeMediaFile' in actions  # twice
+    assert mock_post.call_count == 5
 
 
 @patch('requests.Session.post')
