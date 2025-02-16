@@ -15,7 +15,6 @@ class AnkiMediaType(Enum):
 
 class AnkiMedia(BaseModel):
     path: Path
-    extension: str
     anki_media_type: AnkiMediaType
 
     @property

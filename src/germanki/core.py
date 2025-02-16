@@ -95,7 +95,6 @@ class AnkiCardCreator:
             AnkiMedia(
                 anki_media_type=AnkiMediaType.AUDIO,
                 path=card_contents.word_audio_url,
-                extension='mp3',
             )
             if card_contents.word_audio_url
             else None
@@ -104,7 +103,6 @@ class AnkiCardCreator:
             AnkiMedia(
                 anki_media_type=AnkiMediaType.IMAGE,
                 path=card_contents.translation_image_url,
-                extension='jpg',
             )
             if card_contents.translation_image_url
             else None
@@ -138,14 +136,12 @@ class AnkiCardCreator:
             audio = AnkiMedia(
                 anki_media_type=AnkiMediaType.AUDIO,
                 path=card_contents.word_audio_url,
-                extension='mp3',
             )
             audio_path = f'http://{host}:{port}/app/{audio.path.relative_to(Path(germanki.__file__).parent)}'
         if card_contents.translation_image_url:
             image = AnkiMedia(
                 anki_media_type=AnkiMediaType.IMAGE,
                 path=card_contents.translation_image_url,
-                extension='jpg',
             )
             image_path = f'http://{host}:{port}/app/{image.path.relative_to(Path(germanki.__file__).parent)}'
         return AnkiCardHTMLPreview(

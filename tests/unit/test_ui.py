@@ -1,10 +1,13 @@
 from unittest.mock import patch
 
 import pytest
+import yaml
+from streamlit.testing.v1 import AppTest
 
 from germanki.core import AnkiCardInfo
 from germanki.ui import (
     ChatGPTUIHandler,
+    InputSourceUIHandler,
     InvalidManualInputException,
     ManualInputUIHandler,
     OpenAPIKeyNotProvided,
@@ -72,3 +75,13 @@ def test_manual_handler_parse_empty_input(
         InvalidManualInputException, match='No input provided.'
     ):
         manual_handler.parse('')
+
+
+def test_cannot_instance_source_ui_handler():
+    with pytest.raises(TypeError):
+        InputSourceUIHandler()
+
+
+def test_default_manual_input_is_valid_yaml():
+    manual_input = ManualInputUIHandler()._default_manual_input()
+    yaml.load(manual_input, Loader=yaml.Loader)

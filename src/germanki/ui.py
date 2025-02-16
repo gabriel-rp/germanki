@@ -59,11 +59,11 @@ class OpenAPIKeyNotProvided(InputSourceHandlerException):
 class InputSourceUIHandler(ABC):
     @abstractmethod
     def parse(self, input_text: str) -> List[AnkiCardInfo]:
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def create_input_field(self, window_height: int):
-        pass
+        raise NotImplementedError()
 
 
 class ChatGPTUIHandler(InputSourceUIHandler):
@@ -77,14 +77,11 @@ class ChatGPTUIHandler(InputSourceUIHandler):
         card_content_collection = self.chatgpt_api.query(input_text)
         return card_content_collection.card_contents
 
-    def _default_chatgpt_prompt(self) -> str:
-        return 'Hund\nMann\nFrau'
-
     def create_input_field(self, window_height: int):
         with st.expander('ChatGPT Input', expanded=True):
             return st.text_area(
                 'Enter your words/expressions, one in each line, and ChatGPT will generate the cards for you.',
-                value=self._default_chatgpt_prompt(),
+                value='Hund\nMann\nFrau',
                 height=window_height,
             )
 

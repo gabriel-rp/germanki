@@ -40,12 +40,10 @@ def test_card_with_media():
         media=[
             AnkiMedia(
                 path=Path('test.jpg'),
-                extension='jpg',
                 anki_media_type=AnkiMediaType.IMAGE,
             ),
             AnkiMedia(
                 path=Path('test.mp3'),
-                extension='mp3',
                 anki_media_type=AnkiMediaType.AUDIO,
             ),
         ],
@@ -119,7 +117,6 @@ def test_upload_media_file_not_found(
         anki_client.upload_media(
             AnkiMedia(
                 path=Path('non_existent_file.jpg'),
-                extension='jpg',
                 anki_media_type=AnkiMediaType.IMAGE,
             )
         )
@@ -137,7 +134,6 @@ def test_upload_media(
     result = anki_client.upload_media(
         AnkiMedia(
             path=Path('image.jpg'),
-            extension='jpg',
             anki_media_type=AnkiMediaType.IMAGE,
         )
     )
@@ -156,7 +152,6 @@ def test_upload_media_file_does_not_exist(
         anki_client.upload_media(
             AnkiMedia(
                 path=Path('image.jpg'),
-                extension='jpg',
                 anki_media_type=AnkiMediaType.IMAGE,
             )
         )
