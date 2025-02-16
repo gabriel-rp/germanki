@@ -52,7 +52,13 @@ export OPENAI_API_KEY=<your-api-key>
 # run the app
 poetry run germanki
 ```
-Then go to http://localhost:8503/.
+Then go to http://localhost:8501/.
+
+# Alternatively, use Docker
+```bash
+docker run -p 8501:8501 gabrielrphub/germanki:latest
+```
+Then go to http://localhost:8501/.
 
 # Anki Cards
 By default, this is how the GermAnki is programmed to work.
