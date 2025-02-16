@@ -14,19 +14,19 @@ RUN apt-get update \
 RUN curl -sSL https://install.python-poetry.org | python3 -
 ENV PATH="${PATH}:/root/.local/bin"
 
+WORKDIR /app
+
+# Copies package
+# not optimized for caching
+COPY poetry.lock /app
+COPY pyproject.toml /app
+COPY README.md README.md
+COPY src/ src/
+
 # Configure poetry to use base Python
 RUN poetry config virtualenvs.create false \
     && poetry env use system \
     && poetry env info
 
-WORKDIR /app
-# Cache dependencies
-COPY poetry.lock /app
-COPY pyproject.toml /app
-RUN poetry install --only main --no-root
-
 # Install package
-COPY src/ src/
-# needed for package install
-COPY README.md README.md
 RUN poetry install --only main
