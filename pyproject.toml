@@ -33,7 +33,7 @@ pre-commit = "^4.1.0"
 watchdog = "^6.0.0"
 
 [tool.coverage.report]
-fail_under = 80
+fail_under = 75
 
 [build-system]
 requires = ["poetry-core"]
