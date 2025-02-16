@@ -3,8 +3,8 @@ import streamlit as st
 from germanki.ui import InputSource, OpenAPIKeyNotProvided, UIController
 
 # UI
-st.set_page_config(page_title='GermAnki', layout='wide', page_icon='🦠')
-st.title('GermAnki 🦠')
+st.set_page_config(page_title='GermAnki', layout='wide', page_icon='🙊')
+st.title('GermAnki 🙊')
 columns = st.columns(spec=[3, 2, 7])
 
 st.markdown(
