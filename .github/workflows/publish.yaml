@@ -2,6 +2,8 @@ name: PyPI Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
@@ -9,8 +11,11 @@ jobs:
   pypi_release:
     name: Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     outputs:
-      PACKAGE_VERSION: ${{ steps.get_version.outputs.PACKAGE_VERSION }}  # Make version available
+      PACKAGE_VERSION: ${{ steps.get_current_version.outputs.version }}
 
     steps:
       - name: Checkout repository
@@ -31,20 +36,31 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
+      - name: Get current version
+        id: get_current_version
+        run: echo "::set-output name=version::$(poetry version -s)"
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: v${{ steps.get_current_version.outputs.version }}
+          release_name: Release v${{ steps.get_current_version.outputs.version }}
+          body: Release of version v${{ steps.get_current_version.outputs.version }}
+          draft: false
+          prerelease: false
+
       - name: Configure PyPI
+        if: steps.create_release.outputs.id != '' # Release was created successfully
         run: poetry config pypi-token.pypi ${{ secrets.PYPI_API_TOKEN }}
 
       - name: Build package
+        if: steps.create_release.outputs.id != ''
         run: poetry build
 
       - name: Publish package to PyPI
+        if: steps.create_release.outputs.id != ''
         run: poetry publish
-
-      - name: Get package version
-        id: get_version
-        run: |
-          VERSION=$(poetry version -s)
-          echo "PACKAGE_VERSION=${VERSION}" >> $GITHUB_OUTPUT
 
   build-and-push:
     needs: pypi_release
