@@ -30,3 +30,8 @@ RUN poetry config virtualenvs.create false \
 
 # Install package
 RUN poetry install --only main
+
+ARG STREAMLIT_SERVER_PORT=8501
+EXPOSE ${STREAMLIT_SERVER_PORT}
+
+CMD germanki

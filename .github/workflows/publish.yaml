@@ -75,6 +75,9 @@ jobs:
   build-and-push:
     needs: pypi_release
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        architecture: [amd64, arm64]
     permissions:
       contents: read
       packages: write
@@ -107,6 +110,6 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/germanki:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/germanki:${{ github.sha }}
             ${{ secrets.DOCKERHUB_USERNAME }}/germanki:${{ needs.pypi_release.outputs.PACKAGE_VERSION }}
-          # Build arguments, if needed
+          platforms: linux/${{ matrix.architecture }}
           build-args: |
             PYTHON_VERSION=${{ env.PYTHON_VERSION }}
