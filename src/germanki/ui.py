@@ -14,10 +14,16 @@ from germanki.core import (
     AnkiCardCreator,
     AnkiCardHTMLPreview,
     AnkiCardInfo,
+    CreateCardResponse,
     Germanki,
-    MediaUpdateException,
+    MediaUpdateExceptions,
 )
+from germanki.photos.pexels import PexelsClient
+from germanki.photos.unsplash import UnsplashClient
 from germanki.static import audio, input_examples
+from germanki.utils import get_logger
+
+logger = get_logger(__file__)
 
 
 class RefreshOption(Enum):
@@ -36,6 +42,18 @@ class InputSource(Enum):
             if item.value == input_source_text:
                 return item
         raise ValueError('Invalid input source')
+
+
+class PhotoSource(Enum):
+    PEXELS = 'Pexels'
+    UNSPLASH = 'Unsplash'
+
+    @staticmethod
+    def from_str(photo_source_text: str) -> 'PhotoSource':
+        for item in list(PhotoSource):
+            if item.value == photo_source_text:
+                return item
+        raise ValueError(f'Invalid photo source "{photo_source_text}"')
 
 
 @dataclass
@@ -74,7 +92,11 @@ class ChatGPTUIHandler(InputSourceUIHandler):
         self.chatgpt_api = ChatGPTAPI(openai_api_key)
 
     def parse(self, input_text: str) -> List[AnkiCardInfo]:
+        logger.info(
+            f'Parsing {len(input_text.splitlines())}-line input with ChatGPT'
+        )
         card_content_collection = self.chatgpt_api.query(input_text)
+        logger.info(f'Successfully parsed input with ChatGPT')
         return card_content_collection.card_contents
 
     def create_input_field(self, window_height: int):
@@ -129,19 +151,25 @@ class UIController:
     ui_handler: InputSourceUIHandler
     preview_columns: int
     fallback_input_source: InputSource
+    _photo_source: PhotoSource
 
     def __init__(
         self,
         default_input_source: InputSource,
         preview_columns: int = 3,
         fallback_input_source: InputSource = InputSource.MANUAL,
+        default_photo_source: PhotoSource = PhotoSource.PEXELS,
     ):
-        self._germanki = Germanki(Config())
+        config = Config()
+        self._germanki = Germanki(
+            PexelsClient(config.pexels_api_key), config=config
+        )
         self.preview_columns = preview_columns
         try:
             self.input_source = default_input_source
         except:
             self.input_source = fallback_input_source
+        self._photo_source = default_photo_source
 
         # ensures nothing is refreshed at first
         self._refresh_config = self._refresh_nothing_config()
@@ -170,6 +198,31 @@ class UIController:
         self._input_source = input_source
 
     @property
+    def photo_source(self) -> PhotoSource:
+        return self._photo_source
+
+    @photo_source.setter
+    def photo_source(self, photo_source: PhotoSource):
+        if photo_source == PhotoSource.PEXELS:
+            if not self._germanki.config.pexels_api_key:
+                st.warning('Pexels API key not provided.')
+                return
+            self._germanki.photos_client = PexelsClient(
+                self._germanki.config.pexels_api_key
+            )
+        if photo_source == PhotoSource.UNSPLASH:
+            if not self._germanki.config.unsplash_api_key:
+                st.warning('Unsplash API key not provided.')
+                return
+            self._germanki.photos_client = UnsplashClient(
+                self._germanki.config.unsplash_api_key
+            )
+        if photo_source not in list(PhotoSource):
+            st.warning(f'Invalid photo source {photo_source}.')
+
+        self._photo_source = photo_source
+
+    @property
     def default_window_height(self) -> int:
         return 400
 
@@ -191,12 +244,14 @@ class UIController:
         return self.ui_handler.create_input_field(self.default_window_height)
 
     def update_api_keys_action(
-        self, pexels_api_key: str, openai_api_key: str
+        self, pexels_api_key: str, openai_api_key: str, unsplash_api_key: str
     ) -> None:
         if pexels_api_key:
             self._germanki.config.pexels_api_key = pexels_api_key
         if openai_api_key:
             self._germanki.config.openai_api_key = openai_api_key
+        if unsplash_api_key:
+            self._germanki.config.unsplash_api_key = unsplash_api_key
 
     def select_speaker_action(self, selected_speaker_input: str) -> None:
         # TODO: play sample audio
@@ -219,21 +274,29 @@ class UIController:
             self._germanki.card_contents = card_contents
         except (InvalidManualInputException, InvalidManualInputException) as e:
             st.warning(f'Please provide valid card contents. Error: {e}')
-        except MediaUpdateException as e:
-            st.warning(f'Could not update card media. Error: {e}')
+        except MediaUpdateExceptions as e:
+            st.warning(f'Could not update card media. Errors: {e.exceptions}')
 
         self._refresh_config = PreviewRefreshConfig(RefreshOption.ALL)
 
     def create_cards_action(self, deck_name: str):
         try:
-            self.create_cards(deck_name)
+            responses: List[CreateCardResponse] = self.create_cards(deck_name)
+            for response in responses:
+                if not response.exception:
+                    continue
+
+                st.warning(
+                    f"Error while adding card '{response.card_word}'. {response.exception}"
+                )
+
         except Exception as e:
             st.warning(f'Error while adding cards. {e}')
             raise
         self._refresh_nothing_config()
 
-    def create_cards(self, deck_name: str):
-        self._germanki.create_cards(deck_name)
+    def create_cards(self, deck_name: str) -> List[CreateCardResponse]:
+        return self._germanki.create_cards(deck_name)
 
     def refresh_preview(self):
         preview_cols = st.columns(self.preview_columns)

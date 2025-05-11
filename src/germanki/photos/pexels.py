@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 from pydantic import BaseModel
@@ -10,57 +10,45 @@ from tenacity import (
     wait_exponential,
 )
 
+from germanki.photos import PhotosClient, SearchResponse
+from germanki.photos.exceptions import (
+    PhotosAPIError,
+    PhotosAuthenticationError,
+    PhotosNoResultsError,
+    PhotosNotFoundError,
+    PhotosRateLimitError,
+)
+from germanki.utils import get_logger
 
-class PhotoSource(BaseModel):
+logger = get_logger(__file__)
+
+
+class PexelsPhotoSource(BaseModel):
     large2x: str
 
 
-class PhotoInfo(BaseModel):
-    src: PhotoSource
+class PexelsPhotoInfo(BaseModel):
+    src: PexelsPhotoSource
 
 
-class SearchResponse(BaseModel):
-    photos: List[PhotoInfo]
+class PexelsSearchResponse(BaseModel):
+    photos: List[PexelsPhotoInfo]
     total_results: int
 
-
-class PexelsAPIError(Exception):
-    """Base exception for Pexels API errors."""
-
-    pass
-
-
-class PexelsRateLimitError(PexelsAPIError):
-    """Raised when the API rate limit is exceeded."""
-
-    pass
+    def get_search_response(self) -> SearchResponse:
+        return SearchResponse(
+            photo_urls=[photo.src.large2x for photo in self.photos],
+            total_results=self.total_results,
+        )
 
 
-class PexelsAuthenticationError(PexelsAPIError):
-    """Raised when API authentication fails."""
-
-    pass
-
-
-class PexelsNotFoundError(PexelsAPIError):
-    """Raised when a requested resource is not found."""
-
-    pass
-
-
-class PexelsNoResultsError(PexelsAPIError):
-    """Raised when no results are found for a search query."""
-
-    pass
-
-
-class PexelsClient:
+class PexelsClient(PhotosClient):
     BASE_URL = 'https://api.pexels.com/v1/'
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv('PEXELS_API_KEY')
         if not self.api_key:
-            raise PexelsAuthenticationError(
+            raise PhotosAuthenticationError(
                 'API key is required. Set PEXELS_API_KEY environment variable or pass it explicitly.'
             )
 
@@ -69,9 +57,9 @@ class PexelsClient:
         return {'Authorization': self.api_key}
 
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type(PexelsRateLimitError),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, max=10),
+        retry=retry_if_exception_type(PhotosRateLimitError),
     )
     def _request(
         self, endpoint: str, params: Optional[Dict[str, Any]] = None
@@ -83,19 +71,23 @@ class PexelsClient:
         if response.status_code == 200:
             return response.json()
         elif response.status_code == 401:
-            raise PexelsAuthenticationError(
+            raise PhotosAuthenticationError(
                 'Invalid API key or unauthorized access.'
             )
         elif response.status_code == 403:
-            raise PexelsAuthenticationError(
+            raise PhotosAuthenticationError(
                 'Forbidden: API key may not have necessary permissions.'
             )
         elif response.status_code == 404:
-            raise PexelsNotFoundError(f'Resource not found: {endpoint}')
+            raise PhotosNotFoundError(f'Resource not found: {endpoint}')
         elif response.status_code == 429:
-            raise PexelsRateLimitError('Rate limit exceeded. Retrying...')
+            exception = PhotosRateLimitError(
+                'Rate limit exceeded. Retrying...'
+            )
+            logger.info(exception)
+            raise exception
         else:
-            raise PexelsAPIError(
+            raise PhotosAPIError(
                 f'Unexpected error {response.status_code}: {response.text}'
             )
 
@@ -104,25 +96,19 @@ class PexelsClient:
         query: str,
         per_page: int = 1,
         page: int = 1,
-        orientation: str = 'square',
-    ) -> Generator[SearchResponse, None, None]:
+    ) -> SearchResponse:
         """Search a random photo with the given query."""
         data = self._request(
             'search',
-            params={
-                'query': query,
-                'per_page': per_page,
-                'page': page,
-                'orientation': orientation,
-            },
+            params={'query': query, 'per_page': per_page, 'page': page},
         )
         if data.get('total_results', 0) == 0:
-            raise PexelsNoResultsError(
+            raise PhotosNoResultsError(
                 f"There are no photos for search term '{query}'."
             )
 
         photos = data.get('photos', [])
         if not photos:
-            raise PexelsNotFoundError('No photos found.')
+            raise PhotosNotFoundError('No photos found.')
 
-        return SearchResponse(**data)
+        return PexelsSearchResponse(**data).get_search_response()

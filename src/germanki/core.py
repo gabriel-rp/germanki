@@ -1,31 +1,44 @@
 import os
-from operator import le
 from pathlib import Path
 from random import randint
 from typing import List, Optional
 
 import requests
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 import germanki
 from germanki.anki_connect import (
     AnkiCard,
     AnkiConnectClient,
+    AnkiConnectResponseError,
     AnkiMedia,
     AnkiMediaType,
 )
 from germanki.config import Config
-from germanki.pexels import (
-    PexelsClient,
-    PexelsNoResultsError,
-    PexelsNotFoundError,
-    SearchResponse,
-)
+from germanki.photos import PhotosClient, SearchResponse
+from germanki.photos.exceptions import PhotosNotFoundError
 from germanki.tts_mp3 import TTSAPI
+from germanki.utils import get_logger
+
+logger = get_logger(__file__)
 
 
 class MediaUpdateException(Exception):
-    pass
+    query: str
+    media_type: str
+    exception: Exception
+
+    def __init__(self, query: str, media_type: str, exception: Exception):
+        self.query = query
+        self.media_type = media_type
+        self.exception = exception
+
+
+class MediaUpdateExceptions(Exception):
+    exceptions: List[MediaUpdateException]
+
+    def __init__(self, exceptions):
+        self.exceptions = exceptions
 
 
 class AnkiCardInfo(BaseModel):
@@ -51,6 +64,12 @@ class AnkiCardHTMLPreview(AnkiCard):
     front: str
     back: str
     extra: str
+
+
+class CreateCardResponse(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    card_word: str
+    exception: Optional[AnkiConnectResponseError] = None
 
 
 class AnkiCardCreator:
@@ -181,7 +200,12 @@ class Germanki:
     _selected_speaker: str
     _card_contents: List[AnkiCardInfo]
 
-    def __init__(self, config: Config = Config()):
+    def __init__(
+        self,
+        photos_client: PhotosClient,
+        config: Config = Config(),
+    ):
+        self.photos_client = photos_client
         self.config = config
         self.selected_speaker = self.default_speaker
         self._card_contents = []
@@ -193,8 +217,33 @@ class Germanki:
     @card_contents.setter
     def card_contents(self, card_contents: List[AnkiCardInfo]):
         self._card_contents = card_contents
+
+        logger.info(f'Updating media for {len(self._card_contents)} cards')
+        exceptions = []
         for index in range(len(card_contents)):
-            self.update_card_media(index)
+            try:
+                self.update_card_image(index)
+            except MediaUpdateException as e:
+                exceptions.append(e)
+                logger.info(
+                    f'Card image update with query {e.query} failed. Exception: {e.exception}'
+                )
+
+            try:
+                self.update_card_audio(index)
+            except MediaUpdateException as e:
+                exceptions.append(e)
+                logger.info(
+                    f'Card audio update with query {e.query} failed. Exception: {e.exception}'
+                )
+
+        if len(exceptions) > 0:
+            logger.info(f'Media update raised {len(exceptions)} exceptions')
+            raise MediaUpdateExceptions(exceptions=exceptions)
+
+        logger.info(
+            f'Media successfully updated for {len(self._card_contents)} cards'
+        )
 
     @property
     def speakers(self) -> List[str]:
@@ -214,31 +263,47 @@ class Germanki:
             raise ValueError('Invalid speaker.')
         self._selected_speaker = speaker
 
-    def update_card_media(self, index: int) -> None:
+    def update_card_image(self, index: int) -> None:
         card = self._card_contents[index]
-
-        errors = []
         try:
             card.translation_image_url = self._get_image(card.query_word)
         except Exception as e:
-            errors.append(e)
+            logger.debug(
+                f'Could not update card image with query {card.query_word}. Error: {e}'
+            )
+            raise MediaUpdateException(
+                query=card.query_word, media_type='image', exception=e
+            )
+
+    def update_card_audio(self, index: int) -> None:
+        card = self._card_contents[index]
         try:
             card.word_audio_url = self._get_tts_audio(card.word)
         except Exception as e:
-            errors.append(e)
-
-        if len(errors) > 0:
+            logger.debug(
+                f'Could not update card audio with query {card.word}. Error: {e}'
+            )
             raise MediaUpdateException(
-                f'Could not update card media. Errors: {[str(error) for error in errors]}'
+                query=card.word, media_type='audio', exception=e
             )
 
-    def create_cards(self, deck_name: str):
+    def create_cards(self, deck_name: str) -> List[CreateCardResponse]:
+        responses = []
         anki_client = AnkiConnectClient()
         for card_contents in self._card_contents:
             card = AnkiCardCreator.create(card_contents)
-            self._create_card(
-                deck_name=deck_name, anki_client=anki_client, anki_card=card
-            )
+            response = CreateCardResponse(card_word=card_contents.word)
+            try:
+                self._create_card(
+                    deck_name=deck_name,
+                    anki_client=anki_client,
+                    anki_card=card,
+                )
+            except AnkiConnectResponseError as e:
+                response.exception = e
+
+            responses.append(response)
+        return responses
 
     def _create_card(
         self,
@@ -257,26 +322,26 @@ class Germanki:
             Germanki.convert_query_to_filename(f'{query}_{page}', ext='jpg')
         )
         if image_path.exists():
+            logger.debug(f'image already exists: {image_path}')
             return image_path
         try:
-            pexels_client = PexelsClient(self.config.pexels_api_key)
+            logger.debug(f'searching image with query {query}, page {page}')
             search_response: SearchResponse = (
-                pexels_client.search_random_photo(
+                self.photos_client.search_random_photo(
                     query=query,
                     per_page=1,
                     page=page,
-                    orientation='square',
                 )
             )
             if search_response.total_results == 0:
                 raise
-        except (PexelsNotFoundError):
+        except (PhotosNotFoundError):
             if page > int(page / 2):
                 return self._get_image(query=query, max_pages=int(page / 2))
             if page == 1:
                 raise
 
-        response = requests.get(search_response.photos[0].src.large2x)
+        response = requests.get(search_response.photo_urls[0])
 
         if response.status_code != 200 or not response.content:
             raise Exception(f'Error downloading image: {response.status_code}')

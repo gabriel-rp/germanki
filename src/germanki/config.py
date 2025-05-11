@@ -34,6 +34,10 @@ class Config:
         default=os.environ.get('PEXELS_API_KEY', ''),
         description='Pexels API key necessary to search and download images',
     )
+    unsplash_api_key: str = Field(
+        default=os.environ.get('UNSPLASH_API_KEY', ''),
+        description='Unsplash API key necessary to search and download images',
+    )
     openai_api_key: str = Field(
         default=os.environ.get('OPENAI_API_KEY', ''),
         description='OpenAI API key necessary to generate card contents using ChatGPT',

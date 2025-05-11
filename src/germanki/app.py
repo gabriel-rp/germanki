@@ -1,6 +1,6 @@
 import streamlit as st
 
-from germanki.ui import InputSource, OpenAPIKeyNotProvided, UIController
+from germanki.ui import InputSource, PhotoSource, UIController
 
 # UI
 st.set_page_config(page_title='GermAnki', layout='wide', page_icon='🙊')
@@ -25,6 +25,18 @@ ui: UIController = st.session_state['ui']
 
 # Card Data Input
 with columns[0]:
+    photo_source = st.radio(
+        'Photo Source',
+        options=[item.value for item in PhotoSource],
+        horizontal=True,
+    )
+
+    if photo_source:
+        try:
+            ui.photo_source = PhotoSource.from_str(photo_source)
+        except Exception as e:
+            st.warning(e)
+
     input_method = st.radio(
         'Input Mode',
         options=[item.value for item in InputSource],
@@ -56,8 +68,11 @@ with columns[1]:
         with st.popover('Update API Keys', use_container_width=True):
             pexels_api_key = st.text_input('Pexels API Key')
             openai_api_key = st.text_input('OpenAI API Key')
+            unsplash_api_key = st.text_input('Unsplash API Key')
             if st.button('Update'):
-                ui.update_api_keys_action(pexels_api_key, openai_api_key)
+                ui.update_api_keys_action(
+                    pexels_api_key, openai_api_key, unsplash_api_key
+                )
 
         if st.button(
             'Preview Cards',
