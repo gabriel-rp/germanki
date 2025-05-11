@@ -12,6 +12,7 @@ from germanki.core import (
     MP3Downloader,
 )
 from germanki.photos import SearchResponse
+from germanki.photos.pexels import PexelsClient
 
 
 @pytest.fixture
@@ -34,7 +35,7 @@ def anki_card_creator():
 @pytest.fixture
 def germanki_instance():
     config = Config(pexels_api_key='test_key', openai_api_key='test_key')
-    return Germanki(config)
+    return Germanki(photos_client=None, config=config)
 
 
 @patch('germanki.tts_mp3.TTSAPI.request_tts')
