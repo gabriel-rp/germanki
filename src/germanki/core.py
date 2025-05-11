@@ -3,8 +3,7 @@ import os
 import tempfile
 from pathlib import Path
 from random import randint
-from tempfile import TemporaryFile
-from typing import Any, Generator, Iterator, List, Optional
+from typing import List, Optional
 
 import requests
 from pydantic import BaseModel, ConfigDict, Field

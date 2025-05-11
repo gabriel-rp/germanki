@@ -35,7 +35,7 @@ def anki_card_creator():
 @pytest.fixture
 def germanki_instance():
     config = Config(pexels_api_key='test_key', openai_api_key='test_key')
-    return Germanki(photos_client=None, config=config)
+    return Germanki(photos_client=PexelsClient('test_key'), config=config)
 
 
 @patch('germanki.tts_mp3.TTSAPI.request_tts')
