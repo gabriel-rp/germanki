@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from random import randint
-from typing import List, Optional
+from typing import Any, Generator, Iterator, List, Optional
 
 import requests
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,6 +34,15 @@ class MediaUpdateException(Exception):
         self.exception = exception
 
 
+class ImageUpdateException(Exception):
+    query_words: List[str]
+    exceptions: List[Exception]
+
+    def __init__(self, query_words: str, exceptions: List[Exception]):
+        self.query_words = query_words
+        self.exceptions = exceptions
+
+
 class MediaUpdateExceptions(Exception):
     exceptions: List[MediaUpdateException]
 
@@ -50,14 +59,18 @@ class AnkiCardInfo(BaseModel):
     definition: str
     examples: List[str]
     extra: str
-    image_query: Optional[str] = Field(default=None)
+    image_query_words: Optional[List[str]] = Field(default=None)
     translation_image_url: Optional[str] = Field(default=None)
     word_audio_url: Optional[str] = Field(default=None)
     speaker: str = Field(default='Vicki')
 
     @property
-    def query_word(self) -> str:
-        return self.image_query if self.image_query else self.translations[0]
+    def query_words(self) -> List[str]:
+        return (
+            self.image_query_words
+            if self.image_query_words
+            else self.translations
+        )
 
 
 class AnkiCardHTMLPreview(AnkiCard):
@@ -265,15 +278,26 @@ class Germanki:
 
     def update_card_image(self, index: int) -> None:
         card = self._card_contents[index]
-        try:
-            card.translation_image_url = self._get_image(card.query_word)
-        except Exception as e:
-            logger.debug(
-                f'Could not update card image with query {card.query_word}. Error: {e}'
-            )
-            raise MediaUpdateException(
-                query=card.query_word, media_type='image', exception=e
-            )
+        exceptions = []
+
+        for i, query_word in enumerate(card.query_words):
+            try:
+                card.translation_image_url = self._get_image(query_word)
+                logger.debug(
+                    f'Card image successfully updated with query {query_word}'
+                )
+                return
+            except Exception as e:
+                logger.debug(
+                    f'Could not update card image with query {query_word}. Error: {e}'
+                )
+                if i != len(card.query_words) - 1:
+                    # not last element
+                    exceptions.append(e)
+
+        raise ImageUpdateException(
+            query_words=card.query_words, exceptions=exceptions
+        )
 
     def update_card_audio(self, index: int) -> None:
         card = self._card_contents[index]

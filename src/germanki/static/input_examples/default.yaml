@@ -5,7 +5,7 @@
   definition: Ein Tier, das oft als Haustier gehalten wird.
   examples:
     - Mein Hund spielt im Garten.
-  image_query: dog
+  image_query_words: [dog]
 
 - word: Stuhl
   translations:
@@ -14,4 +14,4 @@
   definition: Ein Möbelstück, auf dem man sitzt.
   examples:
     - Der Stuhl ist sehr bequem.
-  image_query: chair
+  image_query_words: [chair]

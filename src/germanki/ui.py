@@ -138,7 +138,7 @@ class ManualInputUIHandler(InputSourceUIHandler):
             st.markdown(f'```\n{WEB_UI_CHATGPT_PROMPT}\n```')
         with st.expander('Manual Input', expanded=True):
             return st.text_area(
-                'YAML-formatted list with fields `word`, `translations`, `extra`, `definition`, `examples`, `image_query`',
+                'YAML-formatted list with fields `word`, `translations`, `extra`, `definition`, `examples`, `image_query_words`',
                 value=self._default_manual_input(),
                 height=window_height,
             )
@@ -270,7 +270,9 @@ class UIController:
 
     def preview_cards_action(self, cards_input: str) -> None:
         try:
+            st.info('Parsing Input...')
             card_contents = self.ui_handler.parse(cards_input)
+            st.info('Generating Preview...')
             self._germanki.card_contents = card_contents
         except (InvalidManualInputException, InvalidManualInputException) as e:
             st.warning(f'Please provide valid card contents. Error: {e}')
@@ -310,14 +312,17 @@ class UIController:
         )
 
         def set_selected_index() -> None:
+            self.status_bar = 'Refreshing image...'
+            logger.info(f'Requested image refresh for card {card.front}')
             try:
-                self._germanki.update_card_media(index)
+                self._germanki.update_card_image(index)
             except Exception as e:
                 st.warning(f'Could not add media to card. Error: {e}')
+            self.status_bar = ''
 
         def add_refresh_button() -> None:
             st.button(
-                f'Refresh Image ({self._germanki.card_contents[index].query_word})',
+                f'Refresh Image (search terms: {self._germanki.card_contents[index].query_words})',
                 icon='🔄',
                 type='secondary',
                 key=f'refresh_images_{index}',

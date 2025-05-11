@@ -79,7 +79,7 @@ class ChatGPTAPI:
                                         'translations',
                                         'examples',
                                         'extra',
-                                        'image_query',
+                                        'image_query_words',
                                     ],
                                     'additionalProperties': False,
                                     'properties': {
@@ -109,9 +109,12 @@ class ChatGPTAPI:
                                             'description': 'Gender/plural or Perfekt (for verbs)',
                                             'type': 'string',
                                         },
-                                        'image_query': {
-                                            'description': 'A search query one could use to find an image that best describes the original word. The less words, the better.',
-                                            'type': 'string',
+                                        'image_query_words': {
+                                            'description': 'A search query one could use to find an image that best describes the original word. The less words, the better. List of words ordered from most relevant to least relevant.',
+                                            'type': 'array',
+                                            'items': {
+                                                'type': 'string',
+                                            },
                                         },
                                     },
                                 },
