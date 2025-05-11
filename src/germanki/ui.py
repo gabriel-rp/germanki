@@ -313,7 +313,9 @@ class UIController:
 
         def set_selected_index() -> None:
             self.status_bar = 'Refreshing image...'
-            logger.info(f'Requested image refresh for card {card.front}')
+            logger.info(
+                f'Requested image refresh for card {self._germanki.card_contents[index].word}'
+            )
             try:
                 self._germanki.update_card_image(index)
             except Exception as e:

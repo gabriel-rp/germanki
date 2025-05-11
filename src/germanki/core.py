@@ -1,6 +1,9 @@
+import base64
 import os
+import tempfile
 from pathlib import Path
 from random import randint
+from tempfile import TemporaryFile
 from typing import Any, Generator, Iterator, List, Optional
 
 import requests
@@ -90,13 +93,15 @@ class AnkiCardCreator:
     def front(
         card_contents: AnkiCardInfo,
         audio: AnkiMedia,
-        path: str,
         autoplay: bool = True,
         style: str = '',
     ) -> str:
         autoplay_controls = 'autoplay' if autoplay else ''
+        b64_audio = Path(audio.path).read_text()
         return f'{card_contents.word}<br>' + (
-            f'<audio controls {autoplay_controls} src="{path}" style="{style}"></audio>'
+            f'<audio controls {autoplay_controls} style="{style}">'
+            f'<source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3">'
+            '</audio>'
             if audio
             else ''
         )
@@ -140,14 +145,13 @@ class AnkiCardCreator:
             else None
         )
         image_filename = image.filename if image else None
-        audio_filename = audio.filename if audio else None
         media = []
         if image:
             media.append(image)
         if audio:
             media.append(audio)
         return AnkiCard(
-            front=AnkiCardCreator.front(card_contents, audio, audio_filename),
+            front=AnkiCardCreator.front(card_contents, audio),
             back=AnkiCardCreator.back(
                 card_contents, image, image_filename, style='max-width: 500px;'
             ),
@@ -159,7 +163,6 @@ class AnkiCardCreator:
     def html_preview(card_contents: AnkiCardInfo) -> AnkiCardHTMLPreview:
         audio = None
         image = None
-        audio_path = None
         image_path = None
         host = os.getenv('STREAMLIT_SERVER_ADDRESS', 'localhost')
         port = os.getenv('STREAMLIT_SERVER_PORT', '8501')
@@ -169,7 +172,6 @@ class AnkiCardCreator:
                 anki_media_type=AnkiMediaType.AUDIO,
                 path=card_contents.word_audio_url,
             )
-            audio_path = f'http://{host}:{port}/app/{audio.path.relative_to(Path(germanki.__file__).parent)}'
         if card_contents.translation_image_url:
             image = AnkiMedia(
                 anki_media_type=AnkiMediaType.IMAGE,
@@ -180,7 +182,6 @@ class AnkiCardCreator:
             front=AnkiCardCreator.front(
                 card_contents,
                 audio,
-                path=audio_path,
                 autoplay=False,
                 style='width: 100%;',
             ),
@@ -376,18 +377,21 @@ class Germanki:
         return image_path
 
     def _get_tts_audio(self, query: str) -> Optional[Path]:
+        base_filename = f'{query}_{self.selected_speaker}'
         audio_path = self.config.audio_filepath(
-            Germanki.convert_query_to_filename(
-                f'{query}_{self.selected_speaker}', ext='mp3'
-            )
+            Germanki.convert_query_to_filename(base_filename, ext='mp3')
         )
         if audio_path.exists():
             return audio_path
         try:
-            MP3Downloader.download_mp3(
-                msg=query, lang=self.selected_speaker, file_path=audio_path
-            )
-            return audio_path
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tmp_file = Path(tmp_dir, base_filename)
+                MP3Downloader.download_mp3(
+                    msg=query, lang=self.selected_speaker, file_path=tmp_file
+                )
+                b64_audio = base64.b64encode(tmp_file.read_bytes()).decode()
+                audio_path.write_text(b64_audio)
+                return audio_path
         except Exception as e:
             raise e
 

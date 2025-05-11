@@ -2,13 +2,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from germanki.pexels import (
-    PexelsAPIError,
-    PexelsAuthenticationError,
+from germanki.photos import SearchResponse
+from germanki.photos.exceptions import (
+    PhotosAPIError,
+    PhotosAuthenticationError,
+    PhotosNoResultsError,
+    PhotosNotFoundError,
+)
+from germanki.photos.pexels import (
     PexelsClient,
-    PexelsNoResultsError,
-    PexelsNotFoundError,
-    SearchResponse,
+    PexelsSearchResponse,
 )
 
 
@@ -24,7 +27,7 @@ def test_client_init():
 @patch('requests.get')
 def test_client_init_no_api_key(mock_get, monkeypatch):
     monkeypatch.delenv('PEXELS_API_KEY', raising=False)
-    with pytest.raises(PexelsAuthenticationError):
+    with pytest.raises(PhotosAuthenticationError):
         PexelsClient()
 
 
@@ -47,10 +50,10 @@ def test_request_success(mock_get, client: PexelsClient):
 @pytest.mark.parametrize(
     'status_code, exception',
     [
-        (401, PexelsAuthenticationError),
-        (403, PexelsAuthenticationError),
-        (404, PexelsNotFoundError),
-        (500, PexelsAPIError),
+        (401, PhotosAuthenticationError),
+        (403, PhotosAuthenticationError),
+        (404, PhotosNotFoundError),
+        (500, PhotosAPIError),
     ],
 )
 @patch('requests.get')
@@ -87,7 +90,7 @@ def test_search_random_photo_success(mock_get, client: PexelsClient):
     response = client.search_random_photo('nature')
     assert isinstance(response, SearchResponse)
     assert response.total_results == 1
-    assert response.photos[0].src.large2x == 'image_url'
+    assert response.photo_urls[0] == 'image_url'
 
 
 @patch('requests.get')
@@ -97,7 +100,7 @@ def test_search_random_photo_no_results(mock_get, client: PexelsClient):
         'photos': [],
         'total_results': 0,
     }
-    with pytest.raises(PexelsNoResultsError):
+    with pytest.raises(PhotosNoResultsError):
         client.search_random_photo('invalid_query')
 
 
@@ -108,5 +111,5 @@ def test_search_random_photo_empty_photos_list(mock_get, client: PexelsClient):
         'photos': [],
         'total_results': 10,
     }
-    with pytest.raises(PexelsNotFoundError):
+    with pytest.raises(PhotosNotFoundError):
         client.search_random_photo('empty_query')

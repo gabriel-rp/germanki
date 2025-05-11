@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Generator, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 

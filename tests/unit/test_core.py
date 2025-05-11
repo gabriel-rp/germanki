@@ -1,6 +1,5 @@
-import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -10,10 +9,9 @@ from germanki.core import (
     AnkiCardCreator,
     AnkiCardInfo,
     Germanki,
-    MediaUpdateException,
     MP3Downloader,
 )
-from germanki.pexels import PexelsNotFoundError
+from germanki.photos import SearchResponse
 
 
 @pytest.fixture
@@ -66,11 +64,11 @@ def test_mp3_downloader_failure(mock_request, tmp_path):
     mock_request.assert_called_once_with(msg='Hallo', lang='de')
 
 
-@patch('germanki.pexels.PexelsClient.search_random_photo')
-def test_get_image_success(mock_search, germanki_instance, tmp_path):
-    mock_search.return_value.photos = [
-        MagicMock(src=MagicMock(large2x='https://example.com/image.jpg'))
-    ]
+@patch('germanki.photos.pexels.PexelsClient.search_random_photo')
+def test_get_image_success(mock_search, germanki_instance):
+    mock_search.return_value = SearchResponse(
+        photo_urls=['https://example.com/image.jpg'], total_results=1
+    )
 
     with patch('requests.get') as mock_get:
         mock_get.return_value.status_code = 200
@@ -86,42 +84,43 @@ def test_convert_query_to_filename(mock_image_filepath):
     assert filename == 'Hallo_Welt.jpg'
 
 
+@patch('pathlib.Path.read_text', new=lambda _: 'b64_audio')
 def test_anki_card_creator_front(test_card_info):
     audio_with_autoplay = AnkiCardCreator.front(
         test_card_info,
         audio=AnkiMedia(path='test', anki_media_type=AnkiMediaType.AUDIO),
-        path='my/path/to/audio.mp3',
         autoplay=True,
     )
     assert audio_with_autoplay.replace(' ', '') == (
         'Hallo<br>'
-        '<audio controls autoplay src="my/path/to/audio.mp3"'
-        'style=""></audio>'
+        '<audio controls autoplay style="">'
+        '<source src="data:audio/mp3;base64,b64_audio" type="audio/mp3">'
+        '</audio>'
     ).replace(' ', '')
 
     audio_with_autoplay_and_style = AnkiCardCreator.front(
         test_card_info,
         audio=AnkiMedia(path='test', anki_media_type=AnkiMediaType.AUDIO),
-        path='my/path/to/audio.mp3',
         autoplay=True,
         style='width: 100%;',
     )
     assert audio_with_autoplay_and_style.replace(' ', '') == (
         'Hallo<br>'
-        '<audio controls autoplay src="my/path/to/audio.mp3"'
-        'style="width: 100%;"></audio>'
+        '<audio controls autoplay style="width:100%;">'
+        '<source src="data:audio/mp3;base64,b64_audio" type="audio/mp3">'
+        '</audio>'
     ).replace(' ', '')
 
     audio_without_autoplay = AnkiCardCreator.front(
         test_card_info,
         audio=AnkiMedia(path='test', anki_media_type=AnkiMediaType.AUDIO),
-        path='my/path/to/audio.mp3',
         autoplay=False,
     )
     assert audio_without_autoplay.replace(' ', '') == (
         'Hallo<br>'
-        '<audio controls src="my/path/to/audio.mp3"'
-        'style=""></audio>'
+        '<audio controls style="">'
+        '<source src="data:audio/mp3;base64,b64_audio" type="audio/mp3">'
+        '</audio>'
     ).replace(' ', '')
 
 
@@ -155,6 +154,7 @@ def test_anki_card_creator_extra(test_card_info):
     ).replace(' ', '')
 
 
+@patch('pathlib.Path.read_text', new=lambda _: 'b64_audio')
 @patch('pathlib.Path.relative_to', new=lambda self, _: self.stem)
 def test_anki_card_creator_html_preview():
     anki_card_info = AnkiCardInfo(
@@ -170,8 +170,9 @@ def test_anki_card_creator_html_preview():
 
     assert preview.front.replace(' ', '') == (
         'Hallo<br>'
-        '<audio controls src="http://localhost:8501/app/audio"'
-        'style="width:100%;"></audio>'
+        '<audio controls style="width:100%;">'
+        '<source src="data:audio/mp3;base64,b64_audio" type="audio/mp3">'
+        '</audio>'
     ).replace(' ', '')
 
     assert preview.back.replace(' ', '') == (
