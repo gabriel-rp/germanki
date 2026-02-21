@@ -31,7 +31,7 @@ Rules:
 - An input is still considered a verb even when it contains extra information such as the german case or the required prepositions (e.g., "sich freuen + auf + akk.").
 - If the word is mispelled, fix it in the "word" field.
 - Image query words must always be in English in the "image_query_words" field.
-- Provide two example sentences using B1-level vocabulary in the "examples" field.
+- Provide three example sentences using B1-level vocabulary in the "examples" field. At least one example should use Perfekt.
 - List english translations in order from most to least accurate (minimum 2 and maximum 4 words each) in the "translations" field.
 - If the input is a noun, include gender and plural in the "extra" field (e.g., "der Hund, -e").
 - If the input is a noun, capitalize the first letter of the word in the "word" field ("hund" -> "Hund").
@@ -117,7 +117,7 @@ class ChatGPTAPI:
                                             },
                                         },
                                         'examples': {
-                                            'description': 'Three examples of this word usage. At least one in Present and one in Perfect.',
+                                            'description': 'Three examples of this word usage. At least one in Present and one in Perfekt.',
                                             'type': 'array',
                                             'items': {
                                                 'type': 'string',
