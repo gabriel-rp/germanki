@@ -56,7 +56,11 @@ Then go to http://localhost:8501/.
 
 # Alternatively, use Docker
 ```bash
-docker run -p 8501:8501 gabrielrphub/germanki:latest
+# set your Pexels API key if you have one
+export PEXELS_API_KEY=<your-api-key>
+# set your OpenAI API key if you have one
+export OPENAI_API_KEY=<your-api-key>
+docker run -p 8501:8501 -e PEXELS_API_KEY -e OPENAI_API_KEY gabrielrphub/germanki:latest
 ```
 Then go to http://localhost:8501/.
 

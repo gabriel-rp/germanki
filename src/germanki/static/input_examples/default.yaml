@@ -1,17 +1,31 @@
-- word: Hund
+- word: Mannschaft
   translations:
-    - dog
-  extra: der Hund, die Hunde
-  definition: Ein Tier, das oft als Haustier gehalten wird.
+    - team
+    - squad
+  extra: die Mannschaft, -en
+  definition: Gruppe von Sportlern, die zusammen spielen.
   examples:
-    - Mein Hund spielt im Garten.
-  image_query_words: [dog]
+    - Unsere Mannschaft hat das Spiel gewonnen.
+    - Die Mannschaft hat ein Training.
+  image_query_words: [team]
 
-- word: Stuhl
+- word: warten + auf + akk.
   translations:
-    - chair
-  extra: der Stuhl, die Stühle
-  definition: Ein Möbelstück, auf dem man sitzt.
+    - to wait
+    - await
+  extra: haben + gewartet
+  definition: Auf etwas oder jemanden in einer bestimmten Zeit warten.
   examples:
-    - Der Stuhl ist sehr bequem.
-  image_query_words: [chair]
+    - Ich habe auf den Bus gewartet.
+    - Wir haben lange auf dich gewartet.
+  image_query_words: [waiting]
+
+- word: sich + erinnern + an + akk.
+  translations:
+    - to remember
+  extra: haben + sich + erinnert
+  definition: jemanden an etwas erinnern
+  examples:
+    - Er erinnert mich an den Termin.
+    - Kannst du dich daran erinnern?
+  image_query_words: [memory]
