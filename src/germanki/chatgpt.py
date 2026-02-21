@@ -28,6 +28,7 @@ All rules should apply simultaneously.
 Ensure all of them still apply after one rule overrides the original input.
 
 Rules:
+- An expression is still considered a verb when it contains extra information such as the german case or the required prepositions)
 - If the word is mispelled, fix it in the "word" field.
 - Image query words must always be in English in the "image_query_words" field.
 - Provide two example sentences using B1-level vocabulary in the "examples" field.
