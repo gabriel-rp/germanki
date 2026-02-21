@@ -20,7 +20,7 @@ class AnkiCardContentsCollection(BaseModel):
 
 CHATGPT_PROMPT = """
 Each line of input will contain a german word or expression.
-One line of input may generate one or elements in the output list.
+One line of input may generate more than one output.
 The answer should be YAML-formatted.
 The complete schema will be provided below with examples.
 Each line of input should be checked against all of the rules below.
@@ -87,7 +87,7 @@ class ChatGPTAPI:
                         'required': ['card_contents'],
                         'properties': {
                             'card_contents': {
-                                'description': 'List of information for each input word/expression',
+                                'description': 'Language learning flashcard information for German',
                                 'type': 'array',
                                 'items': {
                                     'type': 'object',
@@ -102,11 +102,11 @@ class ChatGPTAPI:
                                     'additionalProperties': False,
                                     'properties': {
                                         'word': {
-                                            'description': 'Original word provided by the user',
+                                            'description': 'Word provided by the user with extra information, when it applies (case, preposition, "sich")',
                                             'type': 'string',
                                         },
                                         'definition': {
-                                            'description': 'Brief German definition',
+                                            'description': 'German definition with B1-level vocabulary',
                                             'type': 'string',
                                         },
                                         'translations': {
@@ -117,7 +117,7 @@ class ChatGPTAPI:
                                             },
                                         },
                                         'examples': {
-                                            'description': 'A couple of examples of this word usage',
+                                            'description': 'Three examples of this word usage. At least one in Present and one in Perfect.',
                                             'type': 'array',
                                             'items': {
                                                 'type': 'string',
