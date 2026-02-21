@@ -39,18 +39,16 @@ Optional:
 
 # Run
 1. Clone this repository
-2. Install [poetry](https://python-poetry.org/docs/)
+2. Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
 Then, inside the repository:
 ```sh
-# install the dependencies
-poetry install
 # set your Pexels API key if you have one
 export PEXELS_API_KEY=<your-api-key>
 # set your OpenAI API key if you have one
 export OPENAI_API_KEY=<your-api-key>
 # run the app
-poetry run germanki
+uv run germanki
 ```
 Then go to http://localhost:8501/.
 
