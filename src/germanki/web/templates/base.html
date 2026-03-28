@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="90s">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GermAnki 🙊</title>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <style>
+        /* Theme Definitions */
+        [data-theme="90s"] {
+            --bg-page: #c0c0c0;
+            --bg-sidebar: #d6d3ce;
+            --bg-header: #000080;
+            --text-main: #000000;
+            --pico-color: var(--text-main);
+            --text-header: #ffffff;
+            --text-card-body: #000000;
+            --primary-accent: #000080;
+            --secondary-accent: #008080;
+            --border-color: #000000;
+            --border-radius: 0px;
+            --card-shadow: 4px 4px 0px #000;
+            --font-main: "MS Sans Serif", "Segoe UI", sans-serif;
+            --card-bg: #ffffff;
+            --card-divider-text: #ffffff;
+            --input-bg: #ffffff;
+            --grid-color: #808080;
+        }
+
+        [data-theme="70s"] {
+            --bg-page: #fdf5e6;
+            --bg-sidebar: #f4e4bc;
+            --bg-header: #f1c40f;
+            --text-main: #3d2b1f;
+            --pico-color: var(--text-main);
+            --text-header: #ffffff;
+            --text-card-body: #3d2b1f;
+            --primary-accent: #e67e22;
+            --secondary-accent: #a4ad8a;
+            --border-color: #3d2b1f;
+            --border-radius: 20px;
+            --card-shadow: 8px 8px 0px #d35400;
+            --font-main: "Georgia", serif;
+            --card-bg: #ffffff;
+            --card-divider-text: #ffffff;
+            --input-bg: #ffffff;
+            --grid-color: #e2d1bc;
+        }
+
+        [data-theme="80s"] {
+            --bg-page: #0a0a0a;
+            --bg-sidebar: #1a1a1a;
+            --bg-header: #ff00ff;
+            --text-main: #ffffff; /* Neon Green was #39ff14, changing to white as requested for cards */
+            --pico-color: #ffffff; /* User requested: white for general text (ul, p, etc) */
+            --text-header: #000000;
+            --text-card-body: #ffffff; /* High contrast white for card text */
+            --primary-accent: #39ff14; /* Neon Green for accents */
+            --secondary-accent: #00ffff; /* Neon Cyan */
+            --border-color: #ff00ff;
+            --border-radius: 0px;
+            --card-shadow: 5px 5px 0px #00ffff;
+            --font-main: "Courier New", Courier, monospace;
+            --card-bg: #111111;
+            --card-divider-text: #000000;
+            --input-bg: #000000;
+            --grid-color: #333333;
+        }
+
+        [data-theme="2000s"] {
+            /* Windows XP "Luna" Theme */
+            --bg-page: #ece9d8; /* Classic XP window background */
+            --bg-sidebar: #ffffff;
+            --bg-header: linear-gradient(to bottom, #245edb 0%, #3f8cf3 9%, #245edb 18%, #245edb 92%, #333 100%);
+            --text-main: #000000;
+            --pico-color: var(--text-main);
+            --text-header: #ffffff;
+            --text-card-body: #000000;
+            --primary-accent: #3c813f; /* XP Start Button Green */
+            --secondary-accent: #ff8c00; /* XP Alert Orange */
+            --border-color: #0054e3; /* Classic XP Blue Border */
+            --border-radius: 8px; /* Rounded window corners */
+            --card-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+            --font-main: "Tahoma", "Trebuchet MS", sans-serif;
+            --card-bg: #ffffff;
+            --card-divider-text: #ffffff;
+            --input-bg: #ffffff;
+            --grid-color: #d1d8e0;
+        }
+
+        :root {
+            --pico-font-size: 14px;
+            --pico-spacing: 0.75rem;
+        }
+
+        body {
+            overflow-x: hidden;
+            width: 100%;
+            background-color: var(--bg-page);
+            color: var(--pico-color);
+            font-family: var(--font-main);
+            background-image: radial-gradient(var(--grid-color) 1px, transparent 1px);
+            background-size: 20px 20px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0;
+            padding: 0 2rem;
+        }
+
+        .card-preview {
+            border: 2px solid var(--border-color);
+            padding: 0;
+            margin-bottom: 2rem;
+            background: var(--card-bg);
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+            display: flex;
+            flex-direction: column;
+            width: 100%; 
+            border-radius: var(--border-radius);
+            box-sizing: border-box;
+        }
+
+        .card-preview p, .card-preview ul, .card-preview li {
+            color: inherit;
+        }
+
+        .card-section {
+            padding: 1rem;
+            font-size: 1rem;
+            color: var(--text-main);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-divider {
+            background: var(--primary-accent);
+            color: var(--card-divider-text);
+            padding: 4px 10px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        /* 3-Column Grid for Mac Air */
+        .cards-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            width: 100%;
+        }
+
+        @media (max-width: 1100px) {
+            .cards-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 700px) {
+            .cards-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        header.container {
+            max-width: 100%;
+            padding: 0.5rem 2rem;
+            background: var(--bg-header);
+            border-bottom: 3px solid var(--border-color);
+            margin-bottom: 1rem;
+            border-radius: 0;
+        }
+
+        nav strong {
+            font-size: 1.5rem;
+            color: var(--text-header);
+            text-transform: uppercase;
+        }
+
+        nav a {
+            color: var(--text-header) !important;
+            font-weight: bold;
+            text-decoration: underline;
+        }
+
+        button, [role="button"], input[type="submit"] {
+            border: 2px solid var(--border-color) !important;
+            border-radius: var(--border-radius) !important;
+            box-shadow: 4px 4px 0px var(--border-color) !important;
+            font-weight: bold !important;
+            background-color: var(--primary-accent) !important;
+            color: var(--text-header) !important;
+            text-transform: uppercase !important;
+            font-size: 0.9rem !important;
+            transition: transform 0.1s, box-shadow 0.1s !important;
+            cursor: pointer;
+        }
+
+        button:hover, [role="button"]:hover {
+            filter: brightness(1.1);
+        }
+
+        button:active, [role="button"]:active {
+            transform: translate(2px, 2px) !important;
+            box-shadow: 2px 2px 0px var(--border-color) !important;
+        }
+
+        button.secondary, [role="button"].secondary { 
+            background-color: var(--secondary-accent) !important; 
+            color: var(--text-header) !important;
+        }
+
+        button.outline, [role="button"].outline {
+            background-color: var(--bg-sidebar) !important;
+            color: var(--text-main) !important;
+        }
+
+        .btn-sm {
+            padding: 2px 8px !important;
+            font-size: 0.7rem !important;
+            box-shadow: 2px 2px 0px var(--border-color) !important;
+        }
+
+        input, select, textarea {
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 0.5rem;
+            background: var(--input-bg);
+            color: var(--text-main);
+            box-shadow: inset 2px 2px 0px var(--grid-color);
+        }
+
+        label { font-weight: bold; color: var(--text-main); font-size: 0.85rem; margin-bottom: 0.4rem; text-transform: uppercase; }
+
+        dialog article {
+            border: 3px solid var(--border-color);
+            box-shadow: 10px 10px 0px var(--border-color);
+            background: var(--bg-sidebar);
+            border-radius: var(--border-radius);
+        }
+
+        dialog article header {
+            background: var(--bg-header);
+            color: var(--text-header);
+            padding: 0.5rem 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .htmx-indicator { display: none; }
+        .htmx-request .htmx-indicator { display: inline-block; }
+        .htmx-request.htmx-indicator { display: inline-block; }
+
+        #card-list {
+            transition: all 0.4s ease;
+        }
+
+        #card-list.htmx-request {
+            opacity: 0.4;                                                                                                                                   filter: grayscale(0.8) blur(1px);
+            pointer-events: none;
+        }
+
+        @media (max-width: 992px) {
+            .grid { grid-template-columns: 1fr !important; }
+        }
+    </style>
+    <script>
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('germanki-theme', theme);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('germanki-theme') || '90s';
+            setTheme(savedTheme);
+            document.getElementById('theme-selector').value = savedTheme;
+        });
+    </script>
+</head>
+<body>
+    <header class="container">
+        <nav>
+            <ul>
+                <li><strong>GermAnki 🙊</strong></li>
+            </ul>
+            <ul>
+                <li>
+                    <select id="theme-selector" onchange="setTheme(this.value)" style="margin-bottom: 0; padding: 2px 5px; font-size: 0.8rem;">
+                        <option value="70s">70s Retro</option>
+                        <option value="80s">80s Neon</option>
+                        <option value="90s">90s Industrial</option>
+                        <option value="2000s">2000s Glossy</option>
+                    </select>
+                </li>
+                <li><a href="#" onclick="document.getElementById('settings-modal').showModal()">Settings</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Settings Modal -->
+    <dialog id="settings-modal">
+        <article>
+            <header>
+                <button aria-label="Close" rel="prev" onclick="document.getElementById('settings-modal').close()"></button>
+                <p><strong>Settings</strong></p>
+            </header>
+            <form hx-post="/settings" hx-swap="innerHTML" hx-target="#settings-response">
+                <label>OpenAI API Key
+                    <input type="password" name="openai_key" placeholder="sk-...">
+                </label>
+                <label>Pexels API Key
+                    <input type="password" name="pexels_key">
+                </label>
+                <label>Unsplash API Key
+                    <input type="password" name="unsplash_key">
+                </label>
+                <label>Speaker
+                    <select name="speaker">
+                        <option value="Vicki" {% if speaker == 'Vicki' %}selected{% endif %}>Vicki</option>
+                        <option value="Hans" {% if speaker == 'Hans' %}selected{% endif %}>Hans</option>
+                        <option value="Marlene" {% if speaker == 'Marlene' %}selected{% endif %}>Marlene</option>
+                    </select>
+                </label>
+                <button type="submit">Save</button>
+                <div id="settings-response"></div>
+            </form>
+        </article>
+    </dialog>
+</body>
+</html>

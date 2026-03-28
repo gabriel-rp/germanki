@@ -41,26 +41,34 @@ Optional:
 1. Clone this repository
 2. Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
+
 Then, inside the repository:
 ```sh
-# set your Pexels API key if you have one
-export PEXELS_API_KEY=<your-api-key>
-# set your OpenAI API key if you have one
-export OPENAI_API_KEY=<your-api-key>
-# run the app
 uv run germanki
 ```
-Then go to http://localhost:8501/.
+Then go to http://localhost:8000/.
 
 # Alternatively, use Docker
+Set your environment variables.
 ```bash
 # set your Pexels API key if you have one
 export PEXELS_API_KEY=<your-api-key>
 # set your OpenAI API key if you have one
 export OPENAI_API_KEY=<your-api-key>
-docker run -p 8501:8501 -e PEXELS_API_KEY -e OPENAI_API_KEY gabrielrphub/germanki:latest
 ```
-Then go to http://localhost:8501/.
+
+On Linux:
+```bash
+docker run -p 8000:8000 -e OPENAI_API_KEY -e PEXELS_API_KEY --network host gabrielrphub/germanki:latest
+```
+
+On Mac:
+```bash
+docker run -p 8000:8000 -e OPENAI_API_KEY=$OPENAI_API_KEY -e PEXELS_API_KEY=$PEXELS_API_KEY --add-host=localho
+st:host-gateway gabrielrphub/germanki:latest
+```
+
+Then go to http://localhost:8000/.
 
 # Anki Cards
 By default, this is how the GermAnki is programmed to work.

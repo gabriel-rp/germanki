@@ -1,10 +1,9 @@
 import json
-import pickle
 from pathlib import Path
-from typing import List
+from typing import Final
 
 import yaml
-from openai import OpenAI
+from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from germanki.core import AnkiCardInfo
@@ -12,13 +11,13 @@ from germanki.static import input_examples
 
 
 class AnkiCardContentsCollection(BaseModel):
-    card_contents: List[AnkiCardInfo]
+    card_contents: list[AnkiCardInfo]
 
     def to_yaml(self) -> str:
         return yaml.dump(self.model_dump()['card_contents'])
 
 
-CHATGPT_PROMPT = """
+CHATGPT_PROMPT: Final[str] = """
 Each line of input will contain a german word or expression.
 One line of input may generate more than one output.
 The answer should be YAML-formatted.
@@ -44,7 +43,7 @@ Rules:
 - If the input is a verb, include the Perfekt (e.g., "sich freuen + auf + akk." -> "haben + gefreut + auf") in the "extra" field. Ensure the correct help verb is used, either "haben" or "sein".
 """
 
-WEB_UI_CHATGPT_PROMPT = (
+WEB_UI_CHATGPT_PROMPT: Final[str] = (
     CHATGPT_PROMPT
     + f"""
 Provide all the answer in a YAML format. Here's an example of the expected output format:
@@ -61,13 +60,13 @@ class ChatGPTAPI:
         max_tokens_per_query: int = 500,
         temperature: int = 0,
     ):
-        self.client = OpenAI(api_key=openai_api_key)
+        self.client = AsyncOpenAI(api_key=openai_api_key)
         self.model = model
         self.max_tokens_per_query = max_tokens_per_query
         self.temperature = temperature
 
-    def query(self, prompt) -> AnkiCardContentsCollection:
-        completion = self.client.chat.completions.create(
+    async def query(self, prompt) -> AnkiCardContentsCollection:
+        completion = await self.client.chat.completions.create(
             model=self.model,
             messages=[
                 {

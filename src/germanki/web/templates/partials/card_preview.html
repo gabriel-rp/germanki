@@ -1,0 +1,51 @@
+<article class="card-preview" id="card-{{ index }}">
+    <header style="padding: 0.75rem 1.25rem; background: var(--bg-header); color: var(--text-header); display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); box-sizing: border-box; min-height: 3.5rem; margin-bottom: 0px;">
+        <strong style="font-size: 0.9rem; text-transform: uppercase; word-break: break-word; margin-right: 1rem; flex-grow: 1; line-height: 1.2;">#{{ index + 1 }}: {{ card.word }}</strong>
+        <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+            <button class="outline btn-sm" style="margin: 0; height: auto;" hx-post="/update-card/{{ index }}/image" hx-target="#card-{{ index }}" hx-swap="outerHTML" hx-indicator="#loading-img-{{ index }}">
+                Refresh Image
+            </button>
+            <button class="outline btn-sm" style="margin: 0; height: auto;" hx-post="/update-card/{{ index }}/audio" hx-target="#card-{{ index }}" hx-swap="outerHTML" hx-indicator="#loading-audio-{{ index }}">
+                Refresh Audio
+            </button>
+        </div>
+    </header>
+    <div id="loading-img-{{ index }}" class="htmx-indicator" style="font-size: 0.5rem; background: var(--secondary-accent); color: var(--text-header); text-align: center; border-bottom: 1px solid var(--border-color);">LOADING IMAGE...</div>
+    <div id="loading-audio-{{ index }}" class="htmx-indicator" style="font-size: 0.5rem; background: var(--secondary-accent); color: var(--text-header); text-align: center; border-bottom: 1px solid var(--border-color);">LOADING AUDIO...</div>
+
+    <div class="card-section" style="background: var(--card-bg);">
+        <div class="card-divider">Front</div>
+        <p style="text-align: center; font-size: 1rem; margin: 0.5rem 0; font-weight: bold; color: {{ card.extra | noun_color or 'var(--text-card-body)' }};">{{ card.word }}</p>
+        {% if card.word_audio_url %}
+            <audio controls style="width: 100%; height: 28px;">
+                <source src="/media/audio/{{ card.word_audio_url | basename }}" type="audio/mpeg">
+            </audio>
+        {% endif %}
+    </div>
+
+    <div class="card-section" style="background: var(--card-bg); border-top: 1px solid var(--border-color);">
+        <div class="card-divider">Back</div>
+        <p style="margin-bottom: 0.5rem; font-size: 1rem; font-weight: bold; text-align: center; color: {{ card.extra | noun_color or 'var(--text-card-body)' }};">{{ card.translations | join(', ') }}</p>
+        {% if card.translation_image_url %}
+            <div style="border: 1px solid var(--border-color); background: #000; aspect-ratio: 1 / 1; overflow: hidden;">
+                <img src="/media/image/{{ card.translation_image_url | basename }}" alt="{{ card.word }}" style="width: 100%; height: 100%; object-fit: cover; display: block;">
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="card-section" style="flex-grow: 1; background: var(--card-bg); border-top: 1px solid var(--border-color);">
+        <div class="card-divider">Extra</div>
+        <div style="font-size: 1rem; color: var(--text-card-body);">
+            {% if card.extra %}
+                {% set color = card.extra | noun_color %}
+                <p style="margin-bottom: 0.4rem; color: {{ color or 'var(--text-card-body)' }}; {% if color %}font-weight: bold;{% endif %}">{{ card.extra }}</p>
+            {% endif %}
+            <p style="margin-bottom: 0.4rem;">{{ card.definition }}</p>
+            <ul style="padding-left: 1rem; margin-bottom: 0;">
+                {% for example in card.examples %}
+                    <li style="margin-bottom: 0.2rem;">{{ example }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</article>

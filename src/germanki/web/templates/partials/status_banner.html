@@ -1,0 +1,21 @@
+{% if not openai_key_set or not pexels_key_set %}
+<article class="warning" id="status-banner" style="padding: 1rem; margin-bottom: 2rem; border: 3px solid #000; background-color: #ffeaa7; box-shadow: 6px 6px 0px #000;">
+    <header style="margin-bottom: 0.5rem; padding: 0.5rem; background: #000; border: none; color: #fff;">
+        <strong style="text-transform: uppercase;">⚠️ System Alert: Configuration Required</strong>
+    </header>
+    <div style="padding: 0.5rem;">
+        <p style="margin-bottom: 1rem; color: #000; font-weight: bold;">
+            {% if not openai_key_set and not pexels_key_set %}
+                Both <span style="text-decoration: underline;">OpenAI</span> and <span style="text-decoration: underline;">Pexels/Unsplash</span> API keys are missing.
+            {% elif not openai_key_set %}
+                Your <span style="text-decoration: underline;">OpenAI</span> API key is missing. ChatGPT generation will not work.
+            {% else %}
+                Your <span style="text-decoration: underline;">Pexels/Unsplash</span> API key is missing. Card images will not be fetched.
+            {% endif %}
+        </p>
+        <button class="outline" style="background: #fff; color: #000; border: 2px solid #000;" onclick="document.getElementById('settings-modal').showModal()">🔧 CONFIGURE API KEYS</button>
+    </div>
+</article>
+{% else %}
+<div id="status-banner" hx-swap-oob="true"></div>
+{% endif %}

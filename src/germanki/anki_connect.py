@@ -1,16 +1,17 @@
 import base64
+import asyncio
+import httpx
+
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-import requests
+from typing import Any
 from pydantic import BaseModel, Field
 
 
 class AnkiMediaType(Enum):
-    IMAGE = 'image'
-    AUDIO = 'audio'
+    IMAGE = "image"
+    AUDIO = "audio"
 
 
 class AnkiMedia(BaseModel):
@@ -19,14 +20,14 @@ class AnkiMedia(BaseModel):
 
     @property
     def filename(self) -> str:
-        return self.path.stem
+        return self.path.name
 
 
 class AnkiCard(BaseModel):
     front: str
     back: str
-    extra: str = Field(default='')
-    media: List[AnkiMedia] = Field(default=[])
+    extra: str = Field(default="")
+    media: list[AnkiMedia] = Field(default=[])
 
 
 class AnkiConnectError(Exception):
@@ -38,11 +39,9 @@ class AnkiConnectError(Exception):
 class AnkiConnectRequestError(AnkiConnectError):
     """Exception raised for request failures (e.g., connection issues)."""
 
-    def __init__(self, message: str, status_code: Optional[int] = None):
+    def __init__(self, message: str, status_code: int | None = None):
         self.status_code = status_code
-        super().__init__(
-            f'Request failed: {message} (Status Code: {status_code})'
-        )
+        super().__init__(f"Request failed: {message} (Status Code: {status_code})")
 
 
 class AnkiConnectResponseError(AnkiConnectError):
@@ -59,140 +58,183 @@ class AnkiConnectDeckNotExistsError(AnkiConnectError):
 
 
 class AnkiConnectClient:
-    """Client for interacting with the AnkiConnect API."""
+    """Client for interacting with the AnkiConnect API asynchronously."""
 
     def __init__(
         self,
-        host: str = 'http://localhost',
+        host: str = "http://localhost",
         port: int = 8765,
         version: int = 6,
         timeout: int = 5,
-        default_tags: List[str] = None,
+        default_tags: list[str] | None = None,
     ):
-        self.base_url = f'{host}:{port}'
+        self.base_url = f"{host}:{port}"
         self.version = version
         self.timeout = timeout
-        self.session = None
         self.default_tags = (
             default_tags
             if default_tags
             else [
-                'automated',
-                datetime.now().strftime('%Y-%m-%d'),
+                "automated",
+                datetime.now().strftime("%Y-%m-%d"),
             ]
         )
 
-    def _request(
-        self, action: str, params: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """Internal method to send a request to AnkiConnect."""
+    async def _request(
+        self, action: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Internal method to send an asynchronous request to AnkiConnect."""
         payload = {
-            'action': action,
-            'version': self.version,
-            'params': params or {},
+            "action": action,
+            "version": self.version,
+            "params": params or {},
         }
 
         try:
-            with self.get_session() as session:
-                response = session.post(
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
                     self.base_url, json=payload, timeout=self.timeout
                 )
                 response.raise_for_status()
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             raise AnkiConnectRequestError(
-                str(e), getattr(e.response, 'status_code', None)
+                str(e),
+                getattr(e.response, "status_code", None)
+                if hasattr(e, "response")
+                else None,
             )
 
         data = response.json()
 
-        if 'error' in data and data['error']:
-            raise AnkiConnectResponseError(action, data['error'])
+        if "error" in data and data["error"]:
+            raise AnkiConnectResponseError(action, data["error"])
 
-        return data.get('result')
+        return data.get("result")
 
     def _add_note_payload_params(
         self,
         deck_name: str,
         anki_card: AnkiCard,
-        tags: Optional[List[str]],
+        tags: list[str] | None,
         model: str,
         allow_duplicate: bool,
-    ) -> Dict[str, str]:
+    ) -> dict[str, Any]:
         tags = tags if tags else []
         return {
-            'deckName': deck_name,
-            'modelName': model,
-            'fields': {
-                'Front': anki_card.front,
-                'Back': anki_card.back,
-                'Extra': anki_card.extra,
+            "deckName": deck_name,
+            "modelName": model,
+            "fields": {
+                "Front": anki_card.front,
+                "Back": anki_card.back,
+                "Extra": anki_card.extra,
             },
-            'tags': self.default_tags + tags,
-            'options': {'allowDuplicate': allow_duplicate},
+            "tags": self.default_tags + tags,
+            "options": {"allowDuplicate": allow_duplicate},
         }
 
-    def add_card(
+    async def add_card(
         self,
         deck_name: str,
         anki_card: AnkiCard,
-        tags: Optional[List[str]] = None,
-        model: str = 'Basic',
+        tags: list[str] | None = None,
+        model: str = "germanki_card",
         allow_duplicate: bool = False,
         create_deck_if_not_exists: bool = True,
-    ) -> Dict[str, Any]:
-        """Adds one card."""
-        deck_exists = self._deck_exists(deck_name)
+    ) -> dict[str, Any]:
+        """Adds one card asynchronously."""
+        deck_exists = await self._deck_exists(deck_name)
         if not deck_exists:
             if not create_deck_if_not_exists:
                 raise AnkiConnectDeckNotExistsError(deck_name=deck_name)
-            self._create_deck(deck_name)
+            await self._create_deck(deck_name)
 
-        self.upload_media_from_card(anki_card)
+        await self.upload_media_from_card(anki_card)
 
-        return self._request(
-            'addNote',
+        return await self._request(
+            "addNote",
             {
-                'note': self._add_note_payload_params(
+                "note": self._add_note_payload_params(
                     deck_name, anki_card, tags, model, allow_duplicate
                 )
             },
         )
 
-    def _create_deck(self, deck_name: str) -> Dict[str, Any]:
-        return self._request('createDeck', {'deck': deck_name})
+    async def _create_deck(self, deck_name: str) -> dict[str, Any]:
+        return await self._request("createDeck", {"deck": deck_name})
 
-    def _deck_exists(self, deck_name: str) -> bool:
-        decks = self._request('deckNames')
+    async def _deck_exists(self, deck_name: str) -> bool:
+        decks = await self.get_deck_names()
         return decks is not None and deck_name in decks
 
-    def upload_media(self, anki_media: AnkiMedia) -> Dict[str, Any]:
-        """Uploads a media file (image or audio) to Anki."""
+    async def get_deck_names(self) -> list[str]:
+        """Fetches the list of all deck names from Anki."""
+        return await self._request("deckNames") or []
+
+    async def get_model_names(self) -> list[str]:
+        """Fetches the list of all model names from Anki."""
+        return await self._request("modelNames") or []
+
+    async def get_model_info(self, model_name: str) -> dict[str, Any]:
+        """Fetches detailed information about a model (note type)."""
+        return await self._request("modelInfo", {"modelName": model_name})
+
+    async def create_model(
+        self,
+        model_name: str,
+        in_order_fields: list[str],
+        card_templates: list[dict[str, str]],
+        css: str = "",
+    ) -> dict[str, Any]:
+        """Creates a new model (note type) in Anki."""
+        params = {
+            "modelName": model_name,
+            "inOrderFields": in_order_fields,
+            "cardTemplates": card_templates,
+            "css": css,
+        }
+        return await self._request("createModel", params)
+
+    async def update_model_templates(
+        self,
+        model_name: str,
+        card_templates: dict[str, dict[str, str]],
+    ) -> dict[str, Any]:
+        """Updates model templates in Anki. card_templates is a dict where key is template name."""
+        params = {
+            "model": {
+                "name": model_name,
+                "templates": card_templates,
+            }
+        }
+        return await self._request("updateModelTemplates", params)
+
+    async def update_model_styling(
+        self,
+        model_name: str,
+        css: str,
+    ) -> dict[str, Any]:
+        """Updates model styling in Anki."""
+        params = {
+            "model": {
+                "name": model_name,
+                "css": css,
+            }
+        }
+        return await self._request("updateModelStyling", params)
+
+    async def upload_media(self, anki_media: AnkiMedia) -> dict[str, Any]:
+        """Uploads a media file (image or audio) to Anki asynchronously."""
 
         if not anki_media.path.exists():
-            raise FileNotFoundError(f'File not found: {anki_media.path}')
+            raise FileNotFoundError(f"File not found: {anki_media.path}")
 
         params = {
-            'filename': anki_media.filename,
-            'data': base64.b64encode(anki_media.path.read_bytes()).decode(
-                'utf-8'
-            ),
+            "filename": anki_media.filename,
+            "data": base64.b64encode(anki_media.path.read_bytes()).decode("utf-8"),
         }
-        return self._request('storeMediaFile', params)
+        return await self._request("storeMediaFile", params)
 
-    def upload_media_from_card(
-        self, anki_card: AnkiCard
-    ) -> List[Dict[str, Any]]:
-        return [self.upload_media(media) for media in anki_card.media]
-
-    def get_session(self) -> requests.Session:
-        if self.session is not None:
-            return self.session
-
-        return requests.Session()
-
-    def __enter__(self):
-        self.session = self.get_session()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.session.close()
+    async def upload_media_from_card(self, anki_card: AnkiCard) -> list[dict[str, Any]]:
+        return await asyncio.gather(
+            *[self.upload_media(media) for media in anki_card.media]
+        )
