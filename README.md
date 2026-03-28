@@ -64,8 +64,7 @@ docker run -p 8000:8000 -e OPENAI_API_KEY -e PEXELS_API_KEY --network host gabri
 
 On Mac:
 ```bash
-docker run -p 8000:8000 -e OPENAI_API_KEY=$OPENAI_API_KEY -e PEXELS_API_KEY=$PEXELS_API_KEY --add-host=localho
-st:host-gateway gabrielrphub/germanki:latest
+docker run -p 8000:8000 -e OPENAI_API_KEY -e PEXELS_API_KEY --add-host=localhost:host-gateway gabrielrphub/germanki:latest
 ```
 
 Then go to http://localhost:8000/.
