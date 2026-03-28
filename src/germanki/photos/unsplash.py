@@ -22,9 +22,7 @@ class UnsplashClient(PhotosClient):
     @property
     def headers(self):
         if not self.api_key:
-            raise PhotosAuthenticationError(
-                'Unsplash API key is missing.'
-            )
+            raise PhotosAuthenticationError('Unsplash API key is missing.')
         return {'Authorization': f'Client-ID {self.api_key}'}
 
     async def _request(
@@ -32,7 +30,9 @@ class UnsplashClient(PhotosClient):
     ) -> dict[str, Any]:
         url = f'{self.BASE_URL}{endpoint}'
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=self.headers, params=params)
+            response = await client.get(
+                url, headers=self.headers, params=params
+            )
 
             if response.status_code == 200:
                 return response.json()

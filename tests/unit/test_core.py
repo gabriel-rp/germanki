@@ -1,11 +1,11 @@
-import base64
 import asyncio
+import base64
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 import respx
-import httpx
 from jinja2 import Environment, FileSystemLoader
 
 from germanki.anki_connect import AnkiMedia, AnkiMediaType
@@ -34,7 +34,13 @@ def test_card_info():
 
 @pytest.fixture
 def jinja_env():
-    templates_dir = Path(__file__).parent.parent.parent / "src" / "germanki" / "web" / "templates"
+    templates_dir = (
+        Path(__file__).parent.parent.parent
+        / 'src'
+        / 'germanki'
+        / 'web'
+        / 'templates'
+    )
     return Environment(loader=FileSystemLoader(str(templates_dir)))
 
 
@@ -65,7 +71,7 @@ async def test_mp3_downloader_success(mock_download, mock_request, tmp_path):
 @patch('germanki.tts_mp3.TTSAPI.request_tts')
 async def test_mp3_downloader_failure(mock_request, tmp_path):
     mock_request.return_value.success = False
-    mock_request.return_value.error_message = "Error"
+    mock_request.return_value.error_message = 'Error'
     file_path = tmp_path / 'test.mp3'
 
     with pytest.raises(Exception):
@@ -79,7 +85,9 @@ async def test_get_image_success(germanki_instance):
         mock_search.return_value = SearchResponse(
             photo_urls=['https://example.com/image.jpg'], total_results=1
         )
-        respx.get("https://example.com/image.jpg").mock(return_value=httpx.Response(200, content=b'fake image data'))
+        respx.get('https://example.com/image.jpg').mock(
+            return_value=httpx.Response(200, content=b'fake image data')
+        )
 
         image_path = await germanki_instance._get_image('Hallo', max_pages=1)
         assert isinstance(image_path, Path)
@@ -95,7 +103,9 @@ def test_anki_card_creator_front(test_card_info, jinja_env):
     front_html = AnkiCardCreator.front(
         jinja_env,
         test_card_info,
-        audio=AnkiMedia(path=Path('test'), anki_media_type=AnkiMediaType.AUDIO),
+        audio=AnkiMedia(
+            path=Path('test'), anki_media_type=AnkiMediaType.AUDIO
+        ),
     )
     assert 'Hallo' in front_html
     # base64.b64encode(b'b64_audio').decode() is 'YjY0X2F1ZGlv'
@@ -106,7 +116,9 @@ def test_anki_card_creator_back(test_card_info, jinja_env):
     back_html = AnkiCardCreator.back(
         jinja_env,
         test_card_info,
-        image=AnkiMedia(path=Path('test.jpg'), anki_media_type=AnkiMediaType.IMAGE),
+        image=AnkiMedia(
+            path=Path('test.jpg'), anki_media_type=AnkiMediaType.IMAGE
+        ),
         style='width: 100%;',
     )
     assert 'Hello' in back_html
@@ -117,4 +129,4 @@ def test_anki_card_creator_extra(test_card_info, jinja_env):
     extra_html = AnkiCardCreator.extra(jinja_env, test_card_info)
     assert 'Common German greeting' in extra_html
     assert 'Erklärung: A greeting in German' in extra_html
-    assert '1. Hallo, wie geht\'s?' in extra_html
+    assert "1. Hallo, wie geht's?" in extra_html

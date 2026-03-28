@@ -34,21 +34,21 @@ class Config(BaseSettings):
     )
 
     pexels_api_key: str = Field(
-        default="",
+        default='',
         description='Pexels API key necessary to search and download images',
     )
     unsplash_api_key: str = Field(
-        default="",
+        default='',
         description='Unsplash API key necessary to search and download images',
     )
     openai_api_key: str = Field(
-        default="",
+        default='',
         description='OpenAI API key necessary to generate card contents using ChatGPT',
     )
     audio_downloads_folder: Path = Field(default=Path(audio.__file__).parent)
     image_downloads_folder: Path = Field(default=Path(image.__file__).parent)
-    db_path: Path = Field(default=Path("germanki.db"))
-    
+    db_path: Path = Field(default=Path('germanki.db'))
+
     enable_extra: bool = Field(default=True)
     image_position: ImagePosition = Field(default=ImagePosition.BACK)
     audio_position: AudioPosition = Field(default=AudioPosition.FRONT)

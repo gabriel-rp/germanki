@@ -1,7 +1,7 @@
+import asyncio
 import base64
 import os
 import tempfile
-import asyncio
 from pathlib import Path
 from random import randint
 
@@ -90,10 +90,14 @@ class AnkiCardCreator:
     ) -> str:
         audio_base64 = None
         if audio:
-            audio_base64 = base64.b64encode(Path(audio.path).read_bytes()).decode()
-        
-        template = env.get_template("anki/front.html")
-        return template.render(card=card_contents, audio=audio, audio_base64=audio_base64)
+            audio_base64 = base64.b64encode(
+                Path(audio.path).read_bytes()
+            ).decode()
+
+        template = env.get_template('anki/front.html')
+        return template.render(
+            card=card_contents, audio=audio, audio_base64=audio_base64
+        )
 
     @staticmethod
     def back(
@@ -103,12 +107,17 @@ class AnkiCardCreator:
         style: str = '',
     ) -> str:
         image_filename = image.filename if image else None
-        template = env.get_template("anki/back.html")
-        return template.render(card=card_contents, image=image, image_filename=image_filename, style=style)
+        template = env.get_template('anki/back.html')
+        return template.render(
+            card=card_contents,
+            image=image,
+            image_filename=image_filename,
+            style=style,
+        )
 
     @staticmethod
     def extra(env, card_contents: AnkiCardInfo) -> str:
-        template = env.get_template("anki/extra.html")
+        template = env.get_template('anki/extra.html')
         return template.render(card=card_contents)
 
     @staticmethod
@@ -129,13 +138,13 @@ class AnkiCardCreator:
             if card_contents.translation_image_url
             else None
         )
-        
+
         media = []
         if image:
             media.append(image)
         if audio:
             media.append(audio)
-            
+
         return AnkiCard(
             front=AnkiCardCreator.front(env, card_contents, audio),
             back=AnkiCardCreator.back(
@@ -157,9 +166,11 @@ class MP3Downloader:
             ):
                 pass
             else:
-                raise Exception("Failed to download MP3")
+                raise Exception('Failed to download MP3')
         else:
-            raise Exception(f"TTS request failed: {tts_response.error_message}")
+            raise Exception(
+                f'TTS request failed: {tts_response.error_message}'
+            )
 
 
 class Germanki:
@@ -174,21 +185,25 @@ class Germanki:
         self.config = config
         self.selected_speaker = self.default_speaker
 
-    async def populate_media(self, cards: list[AnkiCardInfo], skip_images: bool = False) -> list[Exception]:
+    async def populate_media(
+        self, cards: list[AnkiCardInfo], skip_images: bool = False
+    ) -> list[Exception]:
         logger.info(f'Updating media for {len(cards)} cards in parallel')
         tasks = []
         for card in cards:
             if not skip_images:
                 tasks.append(self.update_card_image(card))
             tasks.append(self.update_card_audio(card))
-        
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         exceptions = [r for r in results if isinstance(r, Exception)]
         if exceptions:
-            logger.warning(f'Media update encountered {len(exceptions)} exceptions')
+            logger.warning(
+                f'Media update encountered {len(exceptions)} exceptions'
+            )
             for e in exceptions:
-                logger.error(f"Media update error: {e}")
+                logger.error(f'Media update error: {e}')
 
         logger.info(f'Media successfully updated for {len(cards)} cards')
         return exceptions
@@ -216,7 +231,9 @@ class Germanki:
 
         for i, query_word in enumerate(card.query_words):
             try:
-                card.translation_image_url = str(await self._get_image(query_word))
+                card.translation_image_url = str(
+                    await self._get_image(query_word)
+                )
                 logger.debug(
                     f'Card image successfully updated with query {query_word}'
                 )
@@ -244,15 +261,23 @@ class Germanki:
                 query=card.word, media_type='audio', exception=e
             )
 
-    async def create_cards(self, env, cards: list[AnkiCardInfo], deck_name: str, force_update: bool = False) -> list[CreateCardResponse]:
+    async def create_cards(
+        self,
+        env,
+        cards: list[AnkiCardInfo],
+        deck_name: str,
+        force_update: bool = False,
+    ) -> list[CreateCardResponse]:
         responses = []
         anki_client = AnkiConnectClient()
-        
+
         # Ensure germanki_card model exists and is up to date
         try:
-            await self._ensure_germanki_model(anki_client, force_update=force_update)
+            await self._ensure_germanki_model(
+                anki_client, force_update=force_update
+            )
         except Exception as e:
-            logger.error(f"Failed to ensure germanki_card model: {e}")
+            logger.error(f'Failed to ensure germanki_card model: {e}')
 
         for card_contents in cards:
             card = AnkiCardCreator.create(env, card_contents)
@@ -269,71 +294,75 @@ class Germanki:
             responses.append(response)
         return responses
 
-    async def check_model_outdated(self, anki_client: AnkiConnectClient) -> bool:
-        model_name = "germanki_card"
+    async def check_model_outdated(
+        self, anki_client: AnkiConnectClient
+    ) -> bool:
+        model_name = 'germanki_card'
         models = await anki_client.get_model_names()
         if model_name not in models:
-            return False # It doesn't exist, so it will be created normally
-        
+            return False   # It doesn't exist, so it will be created normally
+
         info = await anki_client.get_model_info(model_name)
         if not info:
             return False
 
         # Check CSS
-        expected_css = ".card { font-family: arial; font-size: 20px; text-align: center; color: black; background-color: white; }"
-        if info.get("css", "").strip() != expected_css.strip():
+        expected_css = '.card { font-family: arial; font-size: 20px; text-align: center; color: black; background-color: white; }'
+        if info.get('css', '').strip() != expected_css.strip():
             return True
 
         # Check Templates
         expected_templates = {
-            "Forward (Front -> Back)": {
-                "Front": "{{Front}}",
-                "Back": "{{FrontSide}}\n\n<hr id=answer>\n\n\n{{#Extra}}\n    {{Extra}}\n{{/Extra}}\n<br><br>\n{{Back}}",
+            'Forward (Front -> Back)': {
+                'Front': '{{Front}}',
+                'Back': '{{FrontSide}}\n\n<hr id=answer>\n\n\n{{#Extra}}\n    {{Extra}}\n{{/Extra}}\n<br><br>\n{{Back}}',
             },
-            "Backward (Back -> Front)": {
-                "Front": "{{Back}}",
-                "Back": "{{FrontSide}}\n\n<hr id=answer>\n\n{{Front}}\n\n<br><br>\n{{#Extra}}\n    {{Extra}}\n{{/Extra}}",
+            'Backward (Back -> Front)': {
+                'Front': '{{Back}}',
+                'Back': '{{FrontSide}}\n\n<hr id=answer>\n\n{{Front}}\n\n<br><br>\n{{#Extra}}\n    {{Extra}}\n{{/Extra}}',
             },
         }
 
-        existing_templates = info.get("tmpls", [])
+        existing_templates = info.get('tmpls', [])
         if len(existing_templates) != len(expected_templates):
             return True
 
         for tmpl in existing_templates:
-            name = tmpl.get("name")
+            name = tmpl.get('name')
             if name not in expected_templates:
                 return True
-            
+
             expected = expected_templates[name]
             # Normalize whitespace for comparison
-            if tmpl.get("qfmt", "").strip() != expected["Front"].strip():
+            if tmpl.get('qfmt', '').strip() != expected['Front'].strip():
                 return True
-            if tmpl.get("afmt", "").strip() != expected["Back"].strip():
+            if tmpl.get('afmt', '').strip() != expected['Back'].strip():
                 return True
-                
+
         return False
 
-    async def _ensure_germanki_model(self, anki_client: AnkiConnectClient, force_update: bool = False):
-        model_name = "germanki_card"
-        in_order_fields = ["Front", "Back", "Extra"]
+    async def _ensure_germanki_model(
+        self, anki_client: AnkiConnectClient, force_update: bool = False
+    ):
+        model_name = 'germanki_card'
+        in_order_fields = ['Front', 'Back', 'Extra']
         card_templates = [
             {
-                "Name": "Forward (Front -> Back)",
-                "Front": "{{Front}}",
-                "Back": "{{FrontSide}}\n\n<hr id=answer>\n\n\n{{#Extra}}\n    {{Extra}}\n{{/Extra}}\n<br><br>\n{{Back}}",
+                'Name': 'Forward (Front -> Back)',
+                'Front': '{{Front}}',
+                'Back': '{{FrontSide}}\n\n<hr id=answer>\n\n\n{{#Extra}}\n    {{Extra}}\n{{/Extra}}\n<br><br>\n{{Back}}',
             },
             {
-                "Name": "Backward (Back -> Front)",
-                "Front": "{{Back}}",
-                "Back": "{{FrontSide}}\n\n<hr id=answer>\n\n{{Front}}\n\n<br><br>\n{{#Extra}}\n    {{Extra}}\n{{/Extra}}",
+                'Name': 'Backward (Back -> Front)',
+                'Front': '{{Back}}',
+                'Back': '{{FrontSide}}\n\n<hr id=answer>\n\n{{Front}}\n\n<br><br>\n{{#Extra}}\n    {{Extra}}\n{{/Extra}}',
             },
         ]
-        css = ".card { font-family: arial; font-size: 20px; text-align: center; color: black; background-color: white; }"
+        css = '.card { font-family: arial; font-size: 20px; text-align: center; color: black; background-color: white; }'
 
         models = await anki_client.get_model_names()
         if model_name not in models:
-            logger.info(f"Creating model {model_name} in Anki")
+            logger.info(f'Creating model {model_name} in Anki')
             await anki_client.create_model(
                 model_name=model_name,
                 in_order_fields=in_order_fields,
@@ -341,13 +370,17 @@ class Germanki:
                 css=css,
             )
         elif force_update:
-            logger.info(f"Forced update of model {model_name} templates and styling in Anki")
+            logger.info(
+                f'Forced update of model {model_name} templates and styling in Anki'
+            )
             # Update templates
             templates_dict = {
-                t["Name"]: {"Front": t["Front"], "Back": t["Back"]}
+                t['Name']: {'Front': t['Front'], 'Back': t['Back']}
                 for t in card_templates
             }
-            await anki_client.update_model_templates(model_name, templates_dict)
+            await anki_client.update_model_templates(
+                model_name, templates_dict
+            )
             # Update styling
             await anki_client.update_model_styling(model_name, css)
 
@@ -360,10 +393,12 @@ class Germanki:
         await anki_client.add_card(
             deck_name=deck_name,
             anki_card=anki_card,
-            model="germanki_card",
+            model='germanki_card',
         )
 
-    async def _get_image(self, query: str, max_pages: int = 100) -> Path | None:
+    async def _get_image(
+        self, query: str, max_pages: int = 100
+    ) -> Path | None:
         page = randint(1, max_pages)
         image_path = self.config.image_filepath(
             Germanki.convert_query_to_filename(f'{query}_{page}', ext='jpg')
@@ -381,10 +416,12 @@ class Germanki:
                 )
             )
             if search_response.total_results == 0:
-                raise PhotosNotFoundError(f"No results for {query}")
+                raise PhotosNotFoundError(f'No results for {query}')
         except (PhotosNotFoundError):
             if page > int(page / 2):
-                return await self._get_image(query=query, max_pages=int(page / 2))
+                return await self._get_image(
+                    query=query, max_pages=int(page / 2)
+                )
             if page == 1:
                 raise
 
@@ -392,7 +429,9 @@ class Germanki:
             response = await client.get(search_response.photo_urls[0])
 
             if response.status_code != 200 or not response.content:
-                raise Exception(f'Error downloading image: {response.status_code}')
+                raise Exception(
+                    f'Error downloading image: {response.status_code}'
+                )
 
             image_path.write_bytes(response.content)
 

@@ -15,13 +15,13 @@ Germanki is a surgical, highly specialized tool for German language learners. It
 4. **Declarative Configuration:** Use `pydantic` models for data structures (cards, session, config) to ensure type safety and easy serialization.
 
 ## Engineering Guidelines
-1. **Media Handling:** 
+1. **Media Handling:**
    - Audio and image files are generated into a local `static` directory and served via FastAPI.
    - Anki integration must use **AnkiConnect**. Always verify the existence of the "Basic" model and the "Front", "Back", and "Extra" fields before creation.
 2. **ChatGPT Prompts:**
    - Prompting logic lives in `chatgpt.py`.
    - Never compromise the "strict" schema in GPT-4o-mini calls. The output must always be valid JSON/YAML following the `AnkiCardInfo` schema.
-3. **Image Providers:** 
+3. **Image Providers:**
    - Maintain support for both Pexels and Unsplash. Ensure proper error handling and fallback logic when an image is not found for a specific query.
 4. **Text-to-Speech:**
    - Pronunciation is critical. Ensure native-sounding voices are prioritized.

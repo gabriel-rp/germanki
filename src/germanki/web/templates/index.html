@@ -8,7 +8,7 @@
 <div class="grid" style="grid-template-columns: 300px 1fr; gap: 2rem; align-items: start; width: 100%; max-width: 100%;">
     <div class="sidebar" style="background: var(--bg-sidebar); border: 2px solid var(--border-color); padding: 1rem; box-shadow: var(--card-shadow); border-radius: var(--border-radius); width: 300px; flex-shrink: 0;">
         <h4 style="margin-top: 0; background: var(--border-color); color: var(--card-bg); padding: 0.25rem; font-size: 0.8rem; text-transform: uppercase; font-weight: bold; text-align: center;">Control Panel</h4>
-        
+
         <form hx-post="/generate" hx-target="#card-list" hx-indicator="#loading, #card-list">
             <fieldset style="border: 1px solid var(--border-color); padding: 0.75rem; margin-bottom: 1rem; background: var(--card-bg); border-radius: var(--border-radius);">
                 <legend style="font-weight: bold; background: var(--bg-page); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 0.5rem; font-size: 0.75rem;">INPUT SOURCE</legend>
@@ -60,7 +60,7 @@
                         const source = e.target.value;
                         const textarea = document.getElementById('input-text');
                         textarea.value = examples[source];
-                        
+
                         const manualTools = document.getElementById('manual-tools');
                         manualTools.style.display = (source === 'manual') ? 'flex' : 'none';
                     });

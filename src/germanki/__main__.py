@@ -1,8 +1,13 @@
 import uvicorn
+
 from germanki.web.app import app
 
+
 def main():
-    uvicorn.run("germanki.web.app:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run(
+        'germanki.web.app:app', host='127.0.0.1', port=8000, reload=True
+    )
+
 
 if __name__ == '__main__':
     main()

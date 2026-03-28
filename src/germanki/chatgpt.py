@@ -17,7 +17,9 @@ class AnkiCardContentsCollection(BaseModel):
         return yaml.dump(self.model_dump()['card_contents'])
 
 
-CHATGPT_PROMPT: Final[str] = """
+CHATGPT_PROMPT: Final[
+    str
+] = """
 Each line of input will contain a german word or expression.
 One line of input may generate more than one output.
 The answer should be YAML-formatted.
