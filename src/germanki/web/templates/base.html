@@ -313,8 +313,11 @@
                 <p><strong>Settings</strong></p>
             </header>
             <form hx-post="/settings" hx-swap="innerHTML" hx-target="#settings-response">
-                <label>OpenAI API Key
-                    <input type="password" name="openai_key" placeholder="sk-...">
+                <label>LLM API Key (OpenAI, Claude, Gemini...)
+                    <input type="password" name="openai_key" placeholder="Enter API key...">
+                </label>
+                <label>LLM Model
+                    <input type="text" name="llm_model" value="{{ llm_model or 'gpt-4o-mini' }}" placeholder="e.g. gpt-4o-mini, claude-3-5-sonnet-20240620, gemini/gemini-1.5-pro">
                 </label>
                 <label>Pexels API Key
                     <input type="password" name="pexels_key">

@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from germanki import __file__ as germanki_file
-from germanki.chatgpt import WEB_UI_CHATGPT_PROMPT, ChatGPTAPI
+from germanki.llm import WEB_UI_LLM_PROMPT, LLMAPI
 from germanki.config import Config
 from germanki.core import AnkiCardCreator, AnkiCardInfo, Germanki
 from germanki.photos.pexels import PexelsClient
@@ -116,7 +116,7 @@ async def read_root(
     manual_example = (
         manual_example_path.read_text() if manual_example_path.exists() else ''
     )
-    chatgpt_example = 'Hund\nKatze\n'
+    llm_example = 'Hund\nKatze\n'
 
     service = get_germanki_service(session)
 
@@ -134,15 +134,17 @@ async def read_root(
         {
             'request': request,
             'cards': session.cards,
+            'input_text': session.input_text,
             'deck_name': session.deck_name,
             'anki_decks': anki_decks,
             'speaker': session.selected_speaker,
+            'llm_model': session.llm_model,
             'input_source': session.input_source,
             'photo_source': session.photo_source,
             'enable_images': session.enable_images,
-            'chatgpt_prompt': WEB_UI_CHATGPT_PROMPT,
+            'llm_prompt': WEB_UI_LLM_PROMPT,
             'manual_example': manual_example,
-            'chatgpt_example': chatgpt_example,
+            'llm_example': llm_example,
             'openai_key_set': bool(service.config.openai_api_key),
             'pexels_key_set': bool(
                 service.config.pexels_api_key
@@ -167,6 +169,7 @@ async def generate_cards(
     service: Germanki = Depends(get_germanki_service),
 ):
     session.input_source = input_source
+    session.input_text = input_text
     session.photo_source = photo_source
     session.enable_images = enable_images == 'on'
 
@@ -176,14 +179,14 @@ async def generate_cards(
                 return HTMLResponse(
                     content="""
                  <div class='error' style='padding: 1rem; border: 2px solid var(--border-color); background: var(--card-bg);'>
-                    <strong>OpenAI API Key missing!</strong><br>
-                    Please add your key in Settings to use ChatGPT generation.
+                    <strong>LLM API Key missing!</strong><br>
+                    Please add your key in Settings to use LLM generation.
                     <button class='outline' onclick="document.getElementById('settings-modal').showModal()">Open Settings</button>
                  </div>
                  """
                 )
-            chatgpt = ChatGPTAPI(service.config.openai_api_key)
-            collection = await chatgpt.query(input_text)
+            llm = LLMAPI(api_key=service.config.openai_api_key, model=session.llm_model)
+            collection = await llm.query(input_text)
             new_cards = collection.card_contents
         else:
             import yaml
@@ -239,6 +242,16 @@ async def generate_cards(
         return HTMLResponse(
             content=f"<div class='error' style='padding: 1rem; border: 2px solid #ff0000; background: #fff1f0; color: #ff0000;'><strong>❌ Error:</strong> {str(e)}</div>"
         )
+
+
+@app.post('/save-input')
+async def save_input(
+    input_text: str = Form(...),
+    session: UserSession = Depends(get_session),
+):
+    session.input_text = input_text
+    await SessionManager.save_session(session)
+    return Response(status_code=204)
 
 
 @app.post('/update-card/{index}/image')
@@ -304,6 +317,48 @@ async def update_audio(
     return HTMLResponse(content='')
 
 
+@app.post('/update-card/{index}/content')
+async def update_card_content(
+    request: Request,
+    index: int,
+    session: UserSession = Depends(get_session),
+    service: Germanki = Depends(get_germanki_service),
+):
+    if 0 <= index < len(session.cards):
+        if not service.config.openai_api_key:
+            return HTMLResponse(
+                content=f"<div class='error' id='card-{index}' style='padding: 0.5rem; background: var(--card-bg); border: 1px solid var(--border-color);'>LLM API Key missing!</div>"
+            )
+
+        card = session.cards[index]
+        original_word = card.word
+        # If it contains extra info like "+ akk.", try to strip it for the query if it helps, 
+        # but LLM is usually smart enough. Let's just use what's there or the original user input?
+        # The card.word might already be processed.
+        
+        try:
+            llm = LLMAPI(api_key=service.config.openai_api_key, model=session.llm_model)
+            new_card_info = await llm.query_single_card(original_word)
+            
+            # Preserve existing media and speaker
+            new_card_info.speaker = card.speaker
+            new_card_info.word_audio_url = card.word_audio_url
+            new_card_info.translation_image_url = card.translation_image_url
+            
+            session.cards[index] = new_card_info
+            await SessionManager.save_session(session)
+        except Exception as e:
+            return HTMLResponse(
+                content=f"<div class='error' style='padding: 0.5rem; background: var(--card-bg); border: 1px solid var(--border-color);'><strong>❌ Content refresh failed:</strong> {str(e)}</div>"
+            )
+
+        return templates.TemplateResponse(
+            'partials/card_preview.html',
+            {'request': request, 'card': new_card_info, 'index': index},
+        )
+    return HTMLResponse(content='')
+
+
 @app.post('/create-cards')
 async def create_cards_anki(
     request: Request,
@@ -365,6 +420,7 @@ async def create_cards_anki(
 async def update_settings(
     request: Request,
     openai_key: str | None = Form(None),
+    llm_model: str | None = Form(None),
     pexels_key: str | None = Form(None),
     unsplash_key: str | None = Form(None),
     speaker: str | None = Form(None),
@@ -372,6 +428,8 @@ async def update_settings(
 ):
     if openai_key is not None:
         session.openai_api_key = openai_key
+    if llm_model is not None:
+        session.llm_model = llm_model
     if pexels_key is not None:
         session.pexels_api_key = pexels_key
     if unsplash_key is not None:

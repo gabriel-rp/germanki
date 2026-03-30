@@ -1,15 +1,20 @@
 <article class="card-preview" id="card-{{ index }}">
-    <header style="padding: 0.75rem 1.25rem; background: var(--bg-header); color: var(--text-header); display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); box-sizing: border-box; min-height: 3.5rem; margin-bottom: 0px;">
-        <strong style="font-size: 0.9rem; text-transform: uppercase; word-break: break-word; margin-right: 1rem; flex-grow: 1; line-height: 1.2;">#{{ index + 1 }}: {{ card.word }}</strong>
-        <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
-            <button class="outline btn-sm" style="margin: 0; height: auto;" hx-post="/update-card/{{ index }}/image" hx-target="#card-{{ index }}" hx-swap="outerHTML" hx-indicator="#loading-img-{{ index }}">
-                Refresh Image
+    <header style="padding: 0.75rem 1.25rem; background: var(--bg-header); color: var(--text-header); display: flex; flex-direction: column; gap: 0.5rem; border-bottom: 2px solid var(--border-color); box-sizing: border-box; margin-bottom: 0px;">
+        <strong style="font-size: 0.9rem; text-transform: uppercase; word-break: break-word; line-height: 1.2;">#{{ index + 1 }}: {{ card.word }}</strong>
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <span style="font-size: 0.65rem; font-weight: bold; opacity: 0.9; text-transform: uppercase; background: rgba(255,255,255,0.1); padding: 2px 4px; border-radius: 2px;">Refresh:</span>
+            <button class="outline btn-sm" style="margin: 0; height: auto; font-size: 0.7rem !important;" hx-post="/update-card/{{ index }}/content" hx-target="#card-{{ index }}" hx-swap="outerHTML" hx-indicator="#loading-content-{{ index }}">
+                Content
             </button>
-            <button class="outline btn-sm" style="margin: 0; height: auto;" hx-post="/update-card/{{ index }}/audio" hx-target="#card-{{ index }}" hx-swap="outerHTML" hx-indicator="#loading-audio-{{ index }}">
-                Refresh Audio
+            <button class="outline btn-sm" style="margin: 0; height: auto; font-size: 0.7rem !important;" hx-post="/update-card/{{ index }}/image" hx-target="#card-{{ index }}" hx-swap="outerHTML" hx-indicator="#loading-img-{{ index }}">
+                Image
+            </button>
+            <button class="outline btn-sm" style="margin: 0; height: auto; font-size: 0.7rem !important;" hx-post="/update-card/{{ index }}/audio" hx-target="#card-{{ index }}" hx-swap="outerHTML" hx-indicator="#loading-audio-{{ index }}">
+                Audio
             </button>
         </div>
     </header>
+    <div id="loading-content-{{ index }}" class="htmx-indicator" style="font-size: 0.5rem; background: var(--secondary-accent); color: var(--text-header); text-align: center; border-bottom: 1px solid var(--border-color);">LOADING NEW CONTENT...</div>
     <div id="loading-img-{{ index }}" class="htmx-indicator" style="font-size: 0.5rem; background: var(--secondary-accent); color: var(--text-header); text-align: center; border-bottom: 1px solid var(--border-color);">LOADING IMAGE...</div>
     <div id="loading-audio-{{ index }}" class="htmx-indicator" style="font-size: 0.5rem; background: var(--secondary-accent); color: var(--text-header); text-align: center; border-bottom: 1px solid var(--border-color);">LOADING AUDIO...</div>
 

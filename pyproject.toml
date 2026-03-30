@@ -26,6 +26,8 @@ dependencies = [
     "pydantic-settings>=2.13.1",
     "aiosqlite>=0.22.1",
     "pytest-asyncio>=1.3.0",
+    "litellm>=1.80.0",
+    "instructor>=1.12.0",
 ]
 
 [project.scripts]

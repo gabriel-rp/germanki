@@ -14,6 +14,8 @@ class UserSession(BaseModel):
     deck_name: str = 'Germanki Deck'
     selected_speaker: str = 'Vicki'
     input_source: str = 'chatgpt'
+    input_text: str = ''
+    llm_model: str = 'gpt-4o-mini'
     photo_source: str = 'pexels'
     enable_images: bool = True
     pexels_api_key: str | None = None

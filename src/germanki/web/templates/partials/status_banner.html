@@ -6,9 +6,9 @@
     <div style="padding: 0.5rem;">
         <p style="margin-bottom: 1rem; color: #000; font-weight: bold;">
             {% if not openai_key_set and not pexels_key_set %}
-                Both <span style="text-decoration: underline;">OpenAI</span> and <span style="text-decoration: underline;">Pexels/Unsplash</span> API keys are missing.
+                Both <span style="text-decoration: underline;">LLM</span> and <span style="text-decoration: underline;">Pexels/Unsplash</span> API keys are missing.
             {% elif not openai_key_set %}
-                Your <span style="text-decoration: underline;">OpenAI</span> API key is missing. ChatGPT generation will not work.
+                Your <span style="text-decoration: underline;">LLM</span> API key is missing. AI generation will not work.
             {% else %}
                 Your <span style="text-decoration: underline;">Pexels/Unsplash</span> API key is missing. Card images will not be fetched.
             {% endif %}
