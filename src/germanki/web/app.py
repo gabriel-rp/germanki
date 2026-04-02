@@ -185,16 +185,52 @@ async def generate_cards(
                  </div>
                  """
                 )
-            llm = LLMAPI(api_key=service.config.openai_api_key, model=session.llm_model)
-            collection = await llm.query(input_text)
-            new_cards = collection.card_contents
+            
+            # Split input into lines and normalize
+            input_lines = [line.strip() for line in input_text.split('\n') if line.strip()]
+            
+            # Identify which lines are NOT represented in session.cards
+            # This handles the "only new cards" requirement.
+            new_lines = []
+            for line in input_lines:
+                found = False
+                l_lower = line.lower()
+                for card in session.cards:
+                    c_lower = card.word.lower()
+                    # Fuzzy match: input line is in card word or vice versa (e.g. "hund" vs "Hund")
+                    if l_lower == c_lower or l_lower in c_lower or c_lower in l_lower:
+                        found = True
+                        break
+                if not found:
+                    new_lines.append(line)
+            
+            if new_lines:
+                llm = LLMAPI(api_key=service.config.openai_api_key, model=session.llm_model)
+                collection = await llm.query('\n'.join(new_lines))
+                # Append only truly new cards
+                session.cards.extend(collection.card_contents)
+            
+            # Filter session.cards to only keep those whose word matches a line in input_text
+            # This handles the "deletions in input area" case.
+            final_cards = []
+            for card in session.cards:
+                c_lower = card.word.lower()
+                for line in input_lines:
+                    l_lower = line.lower()
+                    if l_lower == c_lower or l_lower in c_lower or c_lower in l_lower:
+                        final_cards.append(card)
+                        break
+            session.cards = final_cards
+            new_cards_added = collection.card_contents if new_lines else []
         else:
             import yaml
 
             data = yaml.safe_load(input_text)
-            new_cards = [AnkiCardInfo(**item) for item in data]
+            new_cards_added = [AnkiCardInfo(**item) for item in data]
+            session.cards = new_cards_added
 
         if session.enable_images:
+            # ... rest of the image logic ...
             if photo_source == 'pexels' and not service.config.pexels_api_key:
                 return HTMLResponse(
                     content="""
@@ -219,9 +255,8 @@ async def generate_cards(
                  """
                 )
 
-        session.cards = new_cards
         media_errors = await service.populate_media(
-            session.cards, skip_images=not session.enable_images
+            new_cards_added, skip_images=not session.enable_images
         )
         await SessionManager.save_session(session)
 
@@ -252,6 +287,23 @@ async def save_input(
     session.input_text = input_text
     await SessionManager.save_session(session)
     return Response(status_code=204)
+
+
+@app.post('/clear-cards')
+async def clear_cards(
+    session: UserSession = Depends(get_session),
+):
+    session.cards = []
+    session.input_text = ''
+    await SessionManager.save_session(session)
+    return HTMLResponse(
+        content="""
+        <div style='border: 2px dashed var(--border-color); padding: 3rem; text-align: center; background: var(--card-bg); width: 100%; border-radius: var(--border-radius);'>
+            <p style='font-weight: bold; color: var(--text-main); opacity: 0.5;'>EMPTY</p>
+        </div>
+        <script>document.getElementById('input-text').value = '';</script>
+        """
+    )
 
 
 @app.post('/update-card/{index}/image')

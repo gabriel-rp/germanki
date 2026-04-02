@@ -60,7 +60,7 @@ class LLMAPI:
         self,
         api_key: str | None = None,
         model: str = 'gpt-4o-mini',
-        max_tokens_per_query: int = 500,
+        max_tokens_per_query: int = 4096,
         temperature: float = 0,
     ):
         self.model = model
