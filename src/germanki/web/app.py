@@ -462,6 +462,32 @@ async def create_cards_anki(
         )
 
 
+@app.get("/export-cards")
+async def export_cards(
+    session: UserSession = Depends(get_session),
+    service: Germanki = Depends(get_germanki_service),
+):
+    if not session.cards:
+        raise HTTPException(status_code=400, detail="No cards to export")
+
+    try:
+        zip_data = await service.export_cards(templates.env, session.cards, deck_name=session.deck_name)
+    except Exception as e:
+        logger.error(f"Export failed: {e}", exc_info=True)
+        return HTMLResponse(
+            content=f"<div class='error' style='padding: 1rem; border: 2px solid #ff0000; background: #fff1f0; color: #ff0000;'><strong>❌ Export failed:</strong> {str(e)}</div>",
+            status_code=500
+        )
+
+    return Response(
+        content=apkg_data,
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": "attachment; filename=germanki_export.apkg"
+        },
+    )
+
+
 @app.post("/settings")
 async def update_settings(
     request: Request,

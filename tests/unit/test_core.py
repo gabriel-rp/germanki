@@ -130,3 +130,28 @@ def test_anki_card_creator_extra(test_card_info, jinja_env):
     assert 'Common German greeting' in extra_html
     assert 'Erklärung: A greeting in German' in extra_html
     assert "1. Hallo, wie geht's?" in extra_html
+
+
+@pytest.mark.asyncio
+async def test_export_cards(germanki_instance, test_card_info, jinja_env, tmp_path):
+    import zipfile
+    import io
+
+    # Mock media files
+    audio_path = tmp_path / "test.mp3"
+    audio_path.write_bytes(b"fake audio")
+    test_card_info.word_audio_url = str(audio_path)
+
+    image_path = tmp_path / "test.jpg"
+    image_path.write_bytes(b"fake image")
+    test_card_info.translation_image_url = str(image_path)
+
+    apkg_bytes = await germanki_instance.export_cards(jinja_env, [test_card_info], deck_name="My Test Deck")
+    
+    assert len(apkg_bytes) > 0
+    
+    with zipfile.ZipFile(io.BytesIO(apkg_bytes)) as z:
+        # An apkg is a zip containing collection.anki21 (or .anki2) and media
+        filenames = z.namelist()
+        assert any(f.startswith("collection.anki2") for f in filenames)
+        assert "media" in filenames

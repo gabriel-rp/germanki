@@ -277,6 +277,87 @@ class Germanki:
             responses.append(response)
         return responses
 
+    async def export_cards(
+        self,
+        env,
+        cards: list[AnkiCardInfo],
+        deck_name: str = "Germanki Deck",
+    ) -> bytes:
+        """
+        Exports cards to a native Anki Package (.apkg) file.
+        """
+        import genanki
+        import tempfile
+        import os
+
+        # Define the Anki Model (Note Type) - stable ID to prevent duplicates
+        model_id = 1607392319
+        model = genanki.Model(
+            model_id,
+            "germanki_card",
+            fields=[
+                {"name": "Front"},
+                {"name": "Back"},
+                {"name": "Extra"},
+            ],
+            templates=[
+                {
+                    "name": "Forward (Front -> Back)",
+                    "qfmt": "{{Front}}",
+                    "afmt": "{{FrontSide}}\n\n<hr id=answer>\n\n\n{{#Extra}}\n    {{Extra}}\n{{/Extra}}\n<br><br>\n{{Back}}",
+                },
+                {
+                    "name": "Backward (Back -> Front)",
+                    "qfmt": "{{Back}}",
+                    "afmt": "{{FrontSide}}\n\n<hr id=answer>\n\n{{Front}}\n\n<br><br>\n{{#Extra}}\n    {{Extra}}\n{{/Extra}}",
+                },
+            ],
+            css=".card { font-family: arial; font-size: 20px; text-align: center; color: black; background-color: white; }",
+        )
+
+        # Create the Deck - stable ID based on deck name
+        import hashlib
+        deck_id = int(hashlib.sha256(deck_name.encode()).hexdigest(), 16) % 10**10
+        deck = genanki.Deck(deck_id, deck_name)
+
+        media_files = []
+        for card_info in cards:
+            anki_card_content = AnkiCardCreator.create(env, card_info)
+            
+            # Create Note
+            note = genanki.Note(
+                model=model,
+                fields=[
+                    anki_card_content.front,
+                    anki_card_content.back,
+                    anki_card_content.extra
+                ]
+            )
+            deck.add_note(note)
+
+            # Collect media file paths
+            for media in anki_card_content.media:
+                if media.path.exists():
+                    media_files.append(str(media.path))
+
+        # Generate the package
+        package = genanki.Package(deck)
+        package.media_files = list(set(media_files)) # deduplicate
+
+        # Write to a temporary file and read bytes
+        with tempfile.NamedTemporaryFile(suffix=".apkg", delete=False) as tmp:
+            package.write_to_file(tmp.name)
+            tmp_path = tmp.name
+        
+        try:
+            with open(tmp_path, "rb") as f:
+                apkg_data = f.read()
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+        return apkg_data
+
     async def check_model_outdated(self, anki_client: AnkiConnectClient) -> bool:
         model_name = "germanki_card"
         models = await anki_client.get_model_names()
