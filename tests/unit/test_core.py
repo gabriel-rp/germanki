@@ -1,7 +1,12 @@
+import asyncio
+import base64
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
+import respx
+from jinja2 import Environment, FileSystemLoader
 
 from germanki.anki_connect import AnkiMedia, AnkiMediaType
 from germanki.config import Config
@@ -28,8 +33,15 @@ def test_card_info():
 
 
 @pytest.fixture
-def anki_card_creator():
-    return AnkiCardCreator()
+def jinja_env():
+    templates_dir = (
+        Path(__file__).parent.parent.parent
+        / 'src'
+        / 'germanki'
+        / 'web'
+        / 'templates'
+    )
+    return Environment(loader=FileSystemLoader(str(templates_dir)))
 
 
 @pytest.fixture
@@ -38,15 +50,16 @@ def germanki_instance():
     return Germanki(photos_client=PexelsClient('test_key'), config=config)
 
 
+@pytest.mark.asyncio
 @patch('germanki.tts_mp3.TTSAPI.request_tts')
 @patch('germanki.tts_mp3.TTSAPI.download_mp3')
-def test_mp3_downloader_success(mock_download, mock_request, tmp_path):
+async def test_mp3_downloader_success(mock_download, mock_request, tmp_path):
     mock_request.return_value.success = True
     mock_request.return_value.mp3_url = 'https://example.com/audio.mp3'
     mock_download.return_value = True
 
     file_path = tmp_path / 'test.mp3'
-    MP3Downloader.download_mp3('Hallo', 'de', file_path)
+    await MP3Downloader.download_mp3('Hallo', 'de', file_path)
 
     mock_request.assert_called_once_with(msg='Hallo', lang='de')
     mock_download.assert_called_once_with(
@@ -54,134 +67,91 @@ def test_mp3_downloader_success(mock_download, mock_request, tmp_path):
     )
 
 
+@pytest.mark.asyncio
 @patch('germanki.tts_mp3.TTSAPI.request_tts')
-def test_mp3_downloader_failure(mock_request, tmp_path):
+async def test_mp3_downloader_failure(mock_request, tmp_path):
     mock_request.return_value.success = False
+    mock_request.return_value.error_message = 'Error'
     file_path = tmp_path / 'test.mp3'
 
     with pytest.raises(Exception):
-        MP3Downloader.download_mp3('Hallo', 'de', file_path)
-
-    mock_request.assert_called_once_with(msg='Hallo', lang='de')
+        await MP3Downloader.download_mp3('Hallo', 'de', file_path)
 
 
-@patch('germanki.photos.pexels.PexelsClient.search_random_photo')
-def test_get_image_success(mock_search, germanki_instance):
-    mock_search.return_value = SearchResponse(
-        photo_urls=['https://example.com/image.jpg'], total_results=1
-    )
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_image_success(germanki_instance):
+    with patch.object(PexelsClient, 'search_random_photo') as mock_search:
+        mock_search.return_value = SearchResponse(
+            photo_urls=['https://example.com/image.jpg'], total_results=1
+        )
+        respx.get('https://example.com/image.jpg').mock(
+            return_value=httpx.Response(200, content=b'fake image data')
+        )
 
-    with patch('requests.get') as mock_get:
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.content = b'fake image data'
-
-        image_path = germanki_instance._get_image('Hallo', max_pages=1)
+        image_path = await germanki_instance._get_image('Hallo', max_pages=1)
         assert isinstance(image_path, Path)
 
 
-@patch('germanki.config.Config.image_filepath')
-def test_convert_query_to_filename(mock_image_filepath):
+def test_convert_query_to_filename():
     filename = Germanki.convert_query_to_filename('Hallo Welt!', ext='jpg')
     assert filename == 'Hallo_Welt.jpg'
 
 
-@patch('pathlib.Path.read_text', new=lambda _: 'b64_audio')
-def test_anki_card_creator_front(test_card_info):
-    audio_with_autoplay = AnkiCardCreator.front(
+@patch('pathlib.Path.read_bytes', new=lambda _: b'b64_audio')
+def test_anki_card_creator_front(test_card_info, jinja_env):
+    front_html = AnkiCardCreator.front(
+        jinja_env,
         test_card_info,
-        audio=AnkiMedia(path='test', anki_media_type=AnkiMediaType.AUDIO),
-        autoplay=True,
+        audio=AnkiMedia(
+            path=Path('test'), anki_media_type=AnkiMediaType.AUDIO
+        ),
     )
-    assert audio_with_autoplay.replace(' ', '') == (
-        'Hallo<br>'
-        '<audio controls autoplay style="">'
-        '<source src="data:audio/mp3;base64,b64_audio" type="audio/mp3">'
-        '</audio>'
-    ).replace(' ', '')
+    assert 'Hallo' in front_html
+    # base64.b64encode(b'b64_audio').decode() is 'YjY0X2F1ZGlv'
+    assert 'data:audio/mp3;base64,YjY0X2F1ZGlv' in front_html
 
-    audio_with_autoplay_and_style = AnkiCardCreator.front(
+
+def test_anki_card_creator_back(test_card_info, jinja_env):
+    back_html = AnkiCardCreator.back(
+        jinja_env,
         test_card_info,
-        audio=AnkiMedia(path='test', anki_media_type=AnkiMediaType.AUDIO),
-        autoplay=True,
+        image=AnkiMedia(
+            path=Path('test.jpg'), anki_media_type=AnkiMediaType.IMAGE
+        ),
         style='width: 100%;',
     )
-    assert audio_with_autoplay_and_style.replace(' ', '') == (
-        'Hallo<br>'
-        '<audio controls autoplay style="width:100%;">'
-        '<source src="data:audio/mp3;base64,b64_audio" type="audio/mp3">'
-        '</audio>'
-    ).replace(' ', '')
-
-    audio_without_autoplay = AnkiCardCreator.front(
-        test_card_info,
-        audio=AnkiMedia(path='test', anki_media_type=AnkiMediaType.AUDIO),
-        autoplay=False,
-    )
-    assert audio_without_autoplay.replace(' ', '') == (
-        'Hallo<br>'
-        '<audio controls style="">'
-        '<source src="data:audio/mp3;base64,b64_audio" type="audio/mp3">'
-        '</audio>'
-    ).replace(' ', '')
+    assert 'Hello' in back_html
+    assert '<img src="test.jpg" style="width: 100%;">' in back_html
 
 
-def test_anki_card_creator_back(test_card_info):
-    image_without_style = AnkiCardCreator.back(
-        test_card_info,
-        image=AnkiMedia(path='test', anki_media_type=AnkiMediaType.IMAGE),
-        path='my/path/to/image.jpg',
-        style='',
-    )
-    assert image_without_style.replace(' ', '') == (
-        'Hello<br><img src="my/path/to/image.jpg" style="">'
-    ).replace(' ', '')
-
-    image_with_style = AnkiCardCreator.back(
-        test_card_info,
-        image=AnkiMedia(path='test', anki_media_type=AnkiMediaType.IMAGE),
-        path='my/path/to/image.jpg',
-        style='width: 100%;',
-    )
-    assert image_with_style.replace(' ', '') == (
-        'Hello<br><img src="my/path/to/image.jpg" style="width: 100%;">'
-    ).replace(' ', '')
+def test_anki_card_creator_extra(test_card_info, jinja_env):
+    extra_html = AnkiCardCreator.extra(jinja_env, test_card_info)
+    assert 'Common German greeting' in extra_html
+    assert 'Erklärung: A greeting in German' in extra_html
+    assert "1. Hallo, wie geht's?" in extra_html
 
 
-def test_anki_card_creator_extra(test_card_info):
-    assert AnkiCardCreator.extra(test_card_info,).replace(' ', '') == (
-        'Common German greeting<br><br>'
-        'Erklärung: A greeting in German<br><br>'
-        "Beispiele:<br>1. Hallo,wiegeht's?"
-    ).replace(' ', '')
+@pytest.mark.asyncio
+async def test_export_cards(germanki_instance, test_card_info, jinja_env, tmp_path):
+    import zipfile
+    import io
 
+    # Mock media files
+    audio_path = tmp_path / "test.mp3"
+    audio_path.write_bytes(b"fake audio")
+    test_card_info.word_audio_url = str(audio_path)
 
-@patch('pathlib.Path.read_text', new=lambda _: 'b64_audio')
-@patch('pathlib.Path.relative_to', new=lambda self, _: self.stem)
-def test_anki_card_creator_html_preview():
-    anki_card_info = AnkiCardInfo(
-        word='Hallo',
-        translations=['Hello'],
-        definition='A greeting in German',
-        examples=["Hallo, wie geht's?"],
-        extra='Common German greeting',
-        word_audio_url='my/path/to/audio.mp3',
-        translation_image_url='my/path/to/image.jpg',
-    )
-    preview = AnkiCardCreator.html_preview(anki_card_info)
+    image_path = tmp_path / "test.jpg"
+    image_path.write_bytes(b"fake image")
+    test_card_info.translation_image_url = str(image_path)
 
-    assert preview.front.replace(' ', '') == (
-        'Hallo<br>'
-        '<audio controls style="width:100%;">'
-        '<source src="data:audio/mp3;base64,b64_audio" type="audio/mp3">'
-        '</audio>'
-    ).replace(' ', '')
-
-    assert preview.back.replace(' ', '') == (
-        'Hello<br><img src="http://localhost:8501/app/image" style="">'
-    ).replace(' ', '')
-
-    assert preview.extra.replace(' ', '') == (
-        'Common German greeting<br><br>'
-        'Erklärung: A greeting in German<br><br>'
-        "Beispiele:<br>1. Hallo,wiegeht's?"
-    ).replace(' ', '')
+    apkg_bytes = await germanki_instance.export_cards(jinja_env, [test_card_info], deck_name="My Test Deck")
+    
+    assert len(apkg_bytes) > 0
+    
+    with zipfile.ZipFile(io.BytesIO(apkg_bytes)) as z:
+        # An apkg is a zip containing collection.anki21 (or .anki2) and media
+        filenames = z.namelist()
+        assert any(f.startswith("collection.anki2") for f in filenames)
+        assert "media" in filenames

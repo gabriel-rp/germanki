@@ -1,11 +1,11 @@
-import os
-import sys
-from pathlib import Path
+import uvicorn
+
+from germanki.web.app import app
 
 
 def main():
-    os.system(
-        f'cd {Path(__file__).parent} && {sys.executable} -m streamlit run --server.enableStaticServing true app.py'
+    uvicorn.run(
+        'germanki.web.app:app', host='127.0.0.1', port=8000, reload=True
     )
 
 

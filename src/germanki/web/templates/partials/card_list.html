@@ -1,0 +1,7 @@
+<div class="cards-container">
+    {% for card in cards %}
+        {% with index=loop.index0 %}
+            {% include "partials/card_preview.html" %}
+        {% endwith %}
+    {% endfor %}
+</div>

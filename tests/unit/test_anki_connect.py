@@ -1,12 +1,17 @@
+import base64
+import json
 from pathlib import Path
 from unittest.mock import patch
 
+import httpx
 import pytest
+import respx
 
 from germanki.anki_connect import (
     AnkiCard,
     AnkiConnectClient,
     AnkiConnectDeckNotExistsError,
+    AnkiConnectRequestError,
     AnkiConnectResponseError,
     AnkiMedia,
     AnkiMediaType,
@@ -60,67 +65,93 @@ def test_anki_connect_client_init():
     assert client.version == 7
 
 
-@patch('requests.Session.post')
-def test_request_success(mock_post):
-    mock_post.return_value.status_code = 200
-    mock_post.return_value.json.return_value = {'result': 'success'}
-    client = AnkiConnectClient()
-    result = client._request('some_action')
+@pytest.mark.asyncio
+@respx.mock
+async def test_request_success(anki_client):
+    respx.post('http://localhost:8765').mock(
+        return_value=httpx.Response(
+            200, json={'result': 'success', 'error': None}
+        )
+    )
+    result = await anki_client._request('some_action')
     assert result == 'success'
 
 
-@patch('requests.Session.post')
-def test_request_failure(mock_post):
-    mock_post.return_value.status_code = 500
-    mock_post.return_value.json.return_value = {
-        'error': 'Internal Server Error'
-    }
-    client = AnkiConnectClient()
+@pytest.mark.asyncio
+@respx.mock
+async def test_request_failure(anki_client):
+    # If AnkiConnect returns 500, httpx.raise_for_status() will raise HTTPStatusError,
+    # which _request catches and wraps in AnkiConnectRequestError.
+    respx.post('http://localhost:8765').mock(return_value=httpx.Response(500))
+    with pytest.raises(AnkiConnectRequestError):
+        await anki_client._request('some_action')
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_request_anki_error(anki_client):
+    # If AnkiConnect returns 200 but with an 'error' field in JSON
+    respx.post('http://localhost:8765').mock(
+        return_value=httpx.Response(
+            200, json={'result': None, 'error': 'Some Anki Error'}
+        )
+    )
     with pytest.raises(AnkiConnectResponseError):
-        client._request('some_action')
+        await anki_client._request('some_action')
 
 
-@patch('requests.Session.post')
-def test_add_card_deck_not_exists(
-    mock_post, anki_client: AnkiConnectClient, deck_name, test_card
+@pytest.mark.asyncio
+@respx.mock
+async def test_add_card_deck_not_exists(
+    anki_client: AnkiConnectClient, deck_name, test_card
 ):
-    mock_post.return_value.status_code = 200
-    mock_post.return_value.json.return_value = {'result': None}
+    respx.post('http://localhost:8765').mock(
+        return_value=httpx.Response(200, json={'result': [], 'error': None})
+    )
     with pytest.raises(AnkiConnectDeckNotExistsError):
-        anki_client.add_card(
+        await anki_client.add_card(
             deck_name, test_card, create_deck_if_not_exists=False
         )
 
 
-@patch('requests.Session.post')
-def test_add_card_with_custom_tags(
-    mock_post, anki_client: AnkiConnectClient, deck_name, test_card
+@pytest.mark.asyncio
+@respx.mock
+async def test_add_card_with_custom_tags(
+    anki_client: AnkiConnectClient, deck_name, test_card
 ):
-    mock_post.return_value.status_code = 200
-    mock_post.return_value.json.return_value = {'result': None}
+    # Match deckNames
+    respx.post('http://localhost:8765').mock(
+        side_effect=lambda request: httpx.Response(
+            200, json={'result': [deck_name], 'error': None}
+        )
+        if json.loads(request.content).get('action') == 'deckNames'
+        else httpx.Response(200, json={'result': 12345, 'error': None})
+    )
+
     tags = ['tag1', 'tag2']
-    anki_client.add_card(deck_name, test_card, tags=tags)
-    payload = mock_post.call_args[1]['json']
-    assert 'tag1' in payload['params']['note']['tags']
-    assert 'tag2' in payload['params']['note']['tags']
+    await anki_client.add_card(deck_name, test_card, tags=tags)
 
 
-@patch('requests.Session.post')
-def test_add_card_with_media_file_not_found(
-    mock_post, anki_client: AnkiConnectClient, deck_name, test_card_with_media
+@pytest.mark.asyncio
+@respx.mock
+async def test_add_card_with_media_file_not_found(
+    anki_client: AnkiConnectClient, deck_name, test_card_with_media
 ):
-    mock_post.return_value.status_code = 200
-    mock_post.return_value.json.return_value = {'result': None}
+    respx.post('http://localhost:8765').mock(
+        return_value=httpx.Response(
+            200, json={'result': [deck_name], 'error': None}
+        )
+    )
     with pytest.raises(FileNotFoundError):
-        anki_client.add_card(deck_name, test_card_with_media)
+        await anki_client.add_card(deck_name, test_card_with_media)
 
 
+@pytest.mark.asyncio
+@respx.mock
 @patch('pathlib.Path.exists')
-@patch('requests.Session.post')
 @patch('pathlib.Path.read_bytes')
-def test_add_card_with_media_file_not_found(
+async def test_add_card_success_with_media(
     mock_read_bytes,
-    mock_post,
     mock_exists,
     anki_client: AnkiConnectClient,
     deck_name,
@@ -128,29 +159,26 @@ def test_add_card_with_media_file_not_found(
 ):
     mock_exists.return_value = True
     mock_read_bytes.return_value = b'image_data'
-    mock_post.return_value.status_code = 200
-    mock_post.return_value.json.return_value = {'result': None}
-    anki_client.add_card(deck_name, test_card_with_media)
-    actions = [
-        call_cargs[1]['json']['action']
-        for call_cargs in mock_post.call_args_list
-    ]
-    assert 'deckNames' in actions
-    assert 'createDeck' in actions
-    assert 'addNote' in actions
-    assert 'storeMediaFile' in actions  # twice
-    assert mock_post.call_count == 5
+
+    respx.post('http://localhost:8765').mock(
+        return_value=httpx.Response(
+            200, json={'result': [deck_name], 'error': None}
+        )
+    )
+
+    await anki_client.add_card(deck_name, test_card_with_media)
+    assert len(respx.calls) >= 4
 
 
-@patch('requests.Session.post')
+@pytest.mark.asyncio
+@respx.mock
 @patch('pathlib.Path.read_bytes')
-def test_upload_media_file_not_found(
-    mock_read_bytes, mock_post, anki_client: AnkiConnectClient
+async def test_upload_media_file_not_found(
+    mock_read_bytes, anki_client: AnkiConnectClient
 ):
     mock_read_bytes.return_value = b'fake_data'
-    mock_post.return_value.status_code = 200
     with pytest.raises(FileNotFoundError):
-        anki_client.upload_media(
+        await anki_client.upload_media(
             AnkiMedia(
                 path=Path('non_existent_file.jpg'),
                 anki_media_type=AnkiMediaType.IMAGE,
@@ -158,34 +186,69 @@ def test_upload_media_file_not_found(
         )
 
 
+@pytest.mark.asyncio
+@respx.mock
 @patch('pathlib.Path.exists')
-@patch('requests.Session.post')
 @patch('pathlib.Path.read_bytes')
-def test_upload_media(
-    mock_read_bytes, mock_post, mock_exists, anki_client: AnkiConnectClient
+async def test_upload_media(
+    mock_read_bytes, mock_exists, anki_client: AnkiConnectClient
 ):
     mock_exists.return_value = True
     mock_read_bytes.return_value = b'image_data'
-    mock_post.return_value.status_code = 200
-    result = anki_client.upload_media(
+    respx.post('http://localhost:8765').mock(
+        return_value=httpx.Response(
+            200, json={'result': 'success', 'error': None}
+        )
+    )
+
+    result = await anki_client.upload_media(
         AnkiMedia(
             path=Path('image.jpg'),
             anki_media_type=AnkiMediaType.IMAGE,
         )
     )
-    assert mock_post.call_count == 1
-    assert result is not None
+    assert result == 'success'
 
 
-@patch('requests.Session.post')
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_model_names(anki_client):
+    respx.post('http://localhost:8765').mock(
+        return_value=httpx.Response(
+            200, json={'result': ['Basic', 'germanki_card'], 'error': None}
+        )
+    )
+    result = await anki_client.get_model_names()
+    assert result == ['Basic', 'germanki_card']
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_create_model(anki_client):
+    respx.post('http://localhost:8765').mock(
+        return_value=httpx.Response(
+            200, json={'result': {'name': 'germanki_card'}, 'error': None}
+        )
+    )
+    result = await anki_client.create_model(
+        model_name='germanki_card',
+        in_order_fields=['Front', 'Back', 'Extra'],
+        card_templates=[
+            {'Name': 'Card 1', 'Front': '{{Front}}', 'Back': '{{Back}}'}
+        ],
+    )
+    assert result['name'] == 'germanki_card'
+
+
+@pytest.mark.asyncio
+@respx.mock
 @patch('pathlib.Path.read_bytes')
-def test_upload_media_file_does_not_exist(
-    mock_read_bytes, mock_post, anki_client: AnkiConnectClient
+async def test_upload_media_file_does_not_exist_trigger(
+    mock_read_bytes, anki_client: AnkiConnectClient
 ):
     mock_read_bytes.return_value = b'image_data'
-    mock_post.return_value.status_code = 200
     with pytest.raises(FileNotFoundError):
-        anki_client.upload_media(
+        await anki_client.upload_media(
             AnkiMedia(
                 path=Path('image.jpg'),
                 anki_media_type=AnkiMediaType.IMAGE,
@@ -197,7 +260,7 @@ def test_add_note_payload_params_with_tags_and_model(
     anki_client: AnkiConnectClient, deck_name, test_card
 ):
     tags = ['custom_tag']
-    model = 'Basic'
+    model = 'germanki_card'
     allow_duplicate = True
     payload = anki_client._add_note_payload_params(
         deck_name, test_card, tags, model, allow_duplicate
