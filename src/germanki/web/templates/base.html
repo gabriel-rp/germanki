@@ -333,6 +333,13 @@
                     </select>
                 </label>
                 <button type="submit">Save</button>
+                <button type="button" class="outline btn-sm secondary" 
+                    hx-post="/clear-media" 
+                    hx-target="#settings-response" 
+                    hx-confirm="Are you sure you want to delete all downloaded images and audio? This will not affect cards already in Anki."
+                    style="width: 100%; margin-top: 1rem;">
+                    Clear Media Cache
+                </button>
                 <div id="settings-response"></div>
             </form>
         </article>

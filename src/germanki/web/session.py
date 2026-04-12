@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from uuid import uuid4
 
 import aiosqlite
@@ -24,11 +25,13 @@ class UserSession(BaseModel):
 
 
 class SessionManager:
-    _db_path = Config().db_path
+    @classmethod
+    def db_path(cls) -> Path:
+        return Config().db_path
 
     @classmethod
     async def initialize(cls):
-        async with aiosqlite.connect(cls._db_path) as db:
+        async with aiosqlite.connect(cls.db_path()) as db:
             await db.execute(
                 """
                 CREATE TABLE IF NOT EXISTS sessions (
@@ -41,7 +44,7 @@ class SessionManager:
 
     @classmethod
     async def get_session(cls, session_id: str) -> UserSession:
-        async with aiosqlite.connect(cls._db_path) as db:
+        async with aiosqlite.connect(cls.db_path()) as db:
             async with db.execute(
                 'SELECT data FROM sessions WHERE session_id = ?', (session_id,)
             ) as cursor:
@@ -54,7 +57,7 @@ class SessionManager:
 
     @classmethod
     async def save_session(cls, session: UserSession):
-        async with aiosqlite.connect(cls._db_path) as db:
+        async with aiosqlite.connect(cls.db_path()) as db:
             await db.execute(
                 'INSERT OR REPLACE INTO sessions (session_id, data) VALUES (?, ?)',
                 (session.session_id, session.model_dump_json()),
