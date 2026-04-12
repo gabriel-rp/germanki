@@ -471,7 +471,7 @@ async def export_cards(
         raise HTTPException(status_code=400, detail="No cards to export")
 
     try:
-        zip_data = await service.export_cards(templates.env, session.cards, deck_name=session.deck_name)
+        apkg_data = await service.export_cards(templates.env, session.cards, deck_name=session.deck_name)
     except Exception as e:
         logger.error(f"Export failed: {e}", exc_info=True)
         return HTMLResponse(

@@ -289,6 +289,7 @@ class Germanki:
         import genanki
         import tempfile
         import os
+        import hashlib
 
         # Define the Anki Model (Note Type) - stable ID to prevent duplicates
         model_id = 1607392319
@@ -316,29 +317,41 @@ class Germanki:
         )
 
         # Create the Deck - stable ID based on deck name
-        import hashlib
         deck_id = int(hashlib.sha256(deck_name.encode()).hexdigest(), 16) % 10**10
         deck = genanki.Deck(deck_id, deck_name)
 
         media_files = []
         for card_info in cards:
-            anki_card_content = AnkiCardCreator.create(env, card_info)
+            # Manually construct fields for Anki Package to use [sound:...] and <img> tags
+            # instead of the base64 versions used in the web UI.
+            
+            # Front field
+            front_text = card_info.word
+            if card_info.word_audio_url:
+                audio_path = Path(card_info.word_audio_url)
+                if audio_path.exists():
+                    audio_filename = audio_path.name
+                    front_text += f"<br>[sound:{audio_filename}]"
+                    media_files.append(str(audio_path))
+            
+            # Back field
+            back_text = ", ".join(card_info.translations)
+            if card_info.translation_image_url:
+                image_path = Path(card_info.translation_image_url)
+                if image_path.exists():
+                    image_filename = image_path.name
+                    back_text += f'<br><img src="{image_filename}">'
+                    media_files.append(str(image_path))
+            
+            # Extra field
+            extra_text = AnkiCardCreator.extra(env, card_info)
             
             # Create Note
             note = genanki.Note(
                 model=model,
-                fields=[
-                    anki_card_content.front,
-                    anki_card_content.back,
-                    anki_card_content.extra
-                ]
+                fields=[front_text, back_text, extra_text]
             )
             deck.add_note(note)
-
-            # Collect media file paths
-            for media in anki_card_content.media:
-                if media.path.exists():
-                    media_files.append(str(media.path))
 
         # Generate the package
         package = genanki.Package(deck)
