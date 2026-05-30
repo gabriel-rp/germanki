@@ -23,8 +23,8 @@ COPY src/ src/
 # Install project
 RUN uv sync --locked --no-install-project
 
-# Run Streamlit
-WORKDIR /app/src
-EXPOSE 8501
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
-ENTRYPOINT ["uv", "run", "streamlit", "run", "--server.port=8501", "--server.address=0.0.0.0", "--server.enableStaticServing=true", "germanki/app.py"]
+# Run FastAPI
+WORKDIR /app
+EXPOSE 8000
+HEALTHCHECK CMD curl --fail http://localhost:8000/ || exit 1
+ENTRYPOINT ["uv", "run", "uvicorn", "germanki.web.app:app", "--host", "0.0.0.0", "--port", "8000"]

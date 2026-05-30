@@ -1,0 +1,6 @@
+{{ card.word }}<br>
+{% if audio %}
+<audio controls autoplay>
+    <source src="data:audio/mp3;base64,{{ audio_base64 }}" type="audio/mp3">
+</audio>
+{% endif %}

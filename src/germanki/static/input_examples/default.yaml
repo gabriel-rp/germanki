@@ -5,27 +5,64 @@
   extra: die Mannschaft, -en
   definition: Gruppe von Sportlern, die zusammen spielen.
   examples:
-    - Unsere Mannschaft hat das Spiel gewonnen.
-    - Die Mannschaft hat ein Training.
+    - Die Mannschaft trainiert heute.
+    - Die Mannschaft gewann das Spiel.
+    - Die Mannschaft hat gut gespielt.
+    - Die Mannschaft wird bald gewinnen.
+    - Die Mannschaft wird vom Trainer gelobt.
   image_query_words: [team]
 
 - word: warten + auf + akk.
   translations:
     - to wait
     - await
-  extra: haben + gewartet
+  extra: wartete | hat gewartet
   definition: Auf etwas oder jemanden in einer bestimmten Zeit warten.
   examples:
-    - Ich habe auf den Bus gewartet.
-    - Wir haben lange auf dich gewartet.
+    - Ich warte auf den Bus.
+    - Wir warteten lange am Bahnhof.
+    - Er hat auf seine Freundin gewartet.
+    - Wir werden auf dich warten.
+    - Auf das Ergebnis wird gespannt gewartet.
   image_query_words: [waiting]
 
 - word: sich + erinnern + an + akk.
   translations:
     - to remember
-  extra: haben + sich + erinnert
-  definition: jemanden an etwas erinnern
+  extra: erinnerte sich | hat sich erinnert
+  definition: Etwas aus der Vergangenheit wieder ins Gedächtnis rufen.
   examples:
-    - Er erinnert mich an den Termin.
-    - Kannst du dich daran erinnern?
+    - Ich erinnere mich an den Urlaub.
+    - Er erinnerte sich an ihren Namen.
+    - Wir haben uns an das Versprechen erinnert.
+    - Du wirst dich an diesen Tag erinnern.
+    - An den Vorfall wird sich kaum noch erinnert.
   image_query_words: [memory]
+
+- word: den Löffel abgeben
+  translations:
+    - to kick the bucket
+    - to pass away
+  extra: Idiom
+  definition: Sterben (umgangssprachlich)
+  examples:
+    - Niemand gibt gerne den Löffel ab.
+    - Er gab gestern den Löffel ab.
+    - Mein alter Nachbar hat den Löffel abgegeben.
+    - Irgendwann werden wir alle den Löffel abgeben.
+    - (Passiv bei diesem Idiom unüblich, aber grammatikalisch möglich): In diesem Film wird ständig der Löffel abgegeben.
+  image_query_words: [death]
+
+- word: schnell
+  translations:
+    - fast
+    - quick
+  extra: Adjektiv
+  definition: Mit hoher Geschwindigkeit.
+  examples:
+    - Das Auto fährt schnell.
+    - Der Läufer war sehr schnell.
+    - Wir sind schnell gelaufen.
+    - Du wirst schnell lernen.
+    - Die Arbeit wird schnell erledigt.
+  image_query_words: [speed]
