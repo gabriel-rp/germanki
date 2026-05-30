@@ -50,7 +50,7 @@ class AnkiConnectResponseError(AnkiConnectError):
     """Exception raised when AnkiConnect returns an error response."""
 
     def __init__(self, action: str, error: str):
-        super().__init__(f"AnkiConnect error on action '{action}': {error}")
+        super().__init__(error)
 
 
 class AnkiConnectDeckNotExistsError(AnkiConnectError):
@@ -244,3 +244,11 @@ class AnkiConnectClient:
         return await asyncio.gather(
             *[self.upload_media(media) for media in anki_card.media]
         )
+
+    async def find_notes(self, query: str) -> list[int]:
+        """Finds notes matching the query and returns their IDs."""
+        return await self._request('findNotes', {'query': query}) or []
+
+    async def get_notes_info(self, note_ids: list[int]) -> list[dict[str, Any]]:
+        """Fetches detailed information for a list of note IDs."""
+        return await self._request('notesInfo', {'notes': note_ids}) or []

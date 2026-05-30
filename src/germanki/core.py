@@ -65,6 +65,7 @@ class AnkiCardInfo(BaseModel):
     translation_image_url: str | None = Field(default=None)
     word_audio_url: str | None = Field(default=None)
     speaker: str = Field(default="Vicki")
+    creation_error: str | None = Field(default=None)
 
     @property
     def query_words(self) -> list[str]:

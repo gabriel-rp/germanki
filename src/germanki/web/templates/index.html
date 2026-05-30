@@ -9,7 +9,9 @@
     <div class="sidebar" style="background: var(--bg-sidebar); border: 2px solid var(--border-color); padding: 1rem; box-shadow: var(--card-shadow); border-radius: var(--border-radius); width: 300px; flex-shrink: 0;">
         <h4 style="margin-top: 0; background: var(--border-color); color: var(--card-bg); padding: 0.25rem; font-size: 0.8rem; text-transform: uppercase; font-weight: bold; text-align: center;">Control Panel</h4>
 
-        <form hx-post="/generate" hx-target="#card-list" hx-indicator="#loading, #card-list">
+        <form hx-post="/generate" hx-target="#card-list" hx-indicator="#loading, #card-list" hx-swap="none">
+            <div id="duplicate-alerts"></div>
+            
             <fieldset style="border: 1px solid var(--border-color); padding: 0.75rem; margin-bottom: 1rem; background: var(--card-bg); border-radius: var(--border-radius);">
                 <legend style="font-weight: bold; background: var(--bg-page); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 0.5rem; font-size: 0.75rem;">INPUT SOURCE</legend>
                 <label style="margin-bottom: 0.4rem; cursor: pointer;">
@@ -50,11 +52,23 @@
                 </div>
                 <textarea id="input-text" name="input_text" rows="10" 
                     hx-post="/save-input" hx-trigger="keyup changed delay:500ms" hx-swap="none"
+                    onkeyup="htmx.trigger('#duplicate-check-trigger', 'check')"
                     style="background: var(--input-bg); color: var(--text-main); border: 2px solid var(--border-color); font-family: monospace; font-size: 0.85rem; resize: vertical; border-radius: var(--border-radius);" 
                     placeholder="Paste data here...">{{ input_text or (llm_example if input_source != 'manual' else manual_example) }}</textarea>
+                
+                <button id="duplicate-check-trigger" style="display:none"
+                    hx-post="/check-duplicates" 
+                    hx-trigger="check delay:800ms" 
+                    hx-target="#duplicate-alerts" 
+                    hx-include="#input-text, [name='deck_name']"></button>
             </label>
 
             <script>
+                document.body.addEventListener('card-deleted', (e) => {
+                    const newText = e.detail.value;
+                    document.getElementById('input-text').value = newText;
+                });
+
                 const examples = {
                     'chatgpt': `{{ llm_example | safe }}`,
                     'manual': `{{ manual_example | safe }}`
@@ -91,7 +105,7 @@
 
         <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 1.5rem 0;">
 
-        <form hx-post="/create-cards" hx-target="#create-response" hx-swap="innerHTML">
+        <form hx-post="/create-cards" hx-target="#card-list" hx-swap="innerHTML">
             <label style="font-weight: bold; font-size: 0.75rem;">
                 TARGET DECK
                 <select name="deck_name" style="background: var(--input-bg); border: 2px solid var(--border-color); border-radius: var(--border-radius);">
@@ -113,7 +127,7 @@
                 ACCEPT TEMPLATE UPDATES (MAY AFFECT EXISTING CARDS)
             </label>
 
-            <button type="submit" class="secondary" style="width: 100%; margin-top: 0.5rem;">Sync to Anki</button>
+            <button id="sync-button" type="submit" class="secondary" style="width: 100%; margin-top: 0.5rem;">Sync to Anki</button>
             <button type="button" class="outline" onclick="window.location.href='/export-cards'" style="width: 100%; margin-top: 0.5rem;">Export to .apkg (Manual)</button>
             <div id="create-response" style="margin-top: 0.5rem;"></div>
         </form>
@@ -126,13 +140,15 @@
                 <span aria-busy="true"></span> BUSY...
             </div>
         </div>
-        <div id="card-list" style="width: 100%;">
+        <div id="card-list-container" style="width: 100%;">
             {% if cards %}
                 {% include "partials/card_list.html" %}
             {% else %}
-                <div style="border: 2px dashed var(--border-color); padding: 3rem; text-align: center; background: var(--card-bg); width: 100%; border-radius: var(--border-radius);">
-                    <p style="font-weight: bold; color: var(--text-main); opacity: 0.5;">EMPTY</p>
-                </div>
+                <ul id="card-list" style="list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; width: 100%;">
+                    <div id="empty-state" style="grid-column: 1 / -1; border: 2px dashed var(--border-color); padding: 3rem; text-align: center; background: var(--card-bg); width: 100%; border-radius: var(--border-radius);">
+                        <p style="font-weight: bold; color: var(--text-main); opacity: 0.5;">EMPTY</p>
+                    </div>
+                </ul>
             {% endif %}
         </div>
     </div>

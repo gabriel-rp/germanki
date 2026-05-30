@@ -1,11 +1,11 @@
 import json
 from pathlib import Path
-from typing import Final, Any
+from typing import Final, Any, AsyncGenerator, Literal
 
 import yaml
 import litellm
 import instructor
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from germanki.core import AnkiCardInfo
 from germanki.static import input_examples
@@ -18,36 +18,49 @@ class AnkiCardContentsCollection(BaseModel):
         return yaml.dump(self.model_dump()['card_contents'])
 
 
-LLM_PROMPT: Final[
-    str
-] = """
-Each line of input will contain a german word or expression.
-One line of input may generate more than one output.
-The answer should be YAML-formatted.
-The complete schema will be provided below with examples.
-Each line of input should be checked against all of the rules below.
-All rules should apply simultaneously.
-Ensure all of them still apply after one rule overrides the original input.
+class PreprocessedWord(BaseModel):
+    normalized_word: str = Field(description="The word or expression in its base normalized form (e.g., 'Hund', 'gehen + akk.', 'gut').")
+    category: Literal["noun", "verb", "adjective", "expression"] = Field(description="The grammatical category of the input.")
 
-Rules:
-- An input is still considered a verb even when it contains extra information such as the german case or the required prepositions (e.g., "sich freuen + auf + akk.").
-- If the word is mispelled, fix it in the "word" field.
-- Image query words must always be in English in the "image_query_words" field.
-- Provide three example sentences using B1-level vocabulary in the "examples" field. At least one example should use Perfekt.
-- List english translations in order from most to least accurate (minimum 2 and maximum 4 words each) in the "translations" field.
-- If the input is a noun, include gender and plural in the "extra" field (e.g., "der Hund, -e").
-- If the input is a noun, capitalize the first letter of the word in the "word" field ("hund" -> "Hund").
-- If the input is a noun and the article was accidentally provided with the word, remove it from the "word" field ("der Hund" -> "Hund").
-- If the input is a noun and the word was provided in the plural form and there is a singular form, use the singular form in the "word" field ("Hunde" -> "Hund").
-- If the input is a verb, use the verb in the infinitive version in the "word" field ("gehe" -> "gehen").
-- If the input is a verb, add the case to the "word" field (e.g., "trinken" -> "trinken + akk.")
-- If the input is a relexiv verb, ensure "sich" is in the "word" field ("erinnern" -> "sich erinnern + an + akk.").
-- If the input is a verb and it requires a preposition, ensure it's included in the "word" field ("warten" -> "warten + auf + akk."). If multiple prepositions are possible, create one output list element for each ("sich freuen" should create two entries: "sich freuen + über + akk." and "sich freuen + auf + akk.")
-- If the input is a verb, include the Perfekt (e.g., "sich freuen + auf + akk." -> "haben + gefreut + auf") in the "extra" field. Ensure the correct help verb is used, either "haben" or "sein".
+class PreprocessedCollection(BaseModel):
+    words: list[PreprocessedWord]
+
+
+PREPROCESS_PROMPT: Final[str] = """
+You are a German language expert. Normalize the following inputs for an Anki deck.
+For each input:
+1. Fix any typos or misspellings (e.g., "Hünd" -> "Hund").
+2. Nouns: Use singular form, capitalize it, and REMOVE any articles (e.g., "die Hunde" -> "Hund").
+3. Verbs: Use the present infinitive. Add reflexive "sich" if the verb is reflexive. Add standard prepositions and cases if the verb is commonly used with them (e.g., "gefreut" -> "sich freuen + auf + akk.").
+4. Adjectives: Use the basic, uninflected form (e.g., "schnellere" -> "schnell").
+5. Expressions/Idioms: Keep the full base form (e.g., "den Löffel abgeben").
+
+Identify the category for each: "noun", "verb", "adjective", or "expression".
+"""
+
+CONTENT_PROMPT: Final[str] = """
+You are a German language teacher. For each preprocessed word and its category, generate comprehensive Anki card content.
+
+General Rules:
+- Translations: English, ordered by accuracy (2-4 words each).
+- Definition: Concise explanation (in German). For expressions, explain the figurative meaning.
+- Examples: Provide exactly 5 sentences using B1-level vocabulary. Each sentence MUST use a different grammatical form in this order:
+  1. Präsens
+  2. Präteritum
+  3. Perfekt
+  4. Futur I
+  5. Passiv (Vorgangspassiv)
+- Image Query: Keywords in English for a photo search.
+
+Category Specifics:
+- Nouns: In the "extra" field, provide the gender and plural (e.g., "der Hund, -e").
+- Verbs: In the "extra" field, provide the Präteritum and the Perfekt (e.g., "ging | ist gegangen").
+- Adjectives: In the "extra" field, specify it is an "Adjektiv".
+- Expressions: In the "extra" field, specify "Idiom" or "Umgangssprache".
 """
 
 WEB_UI_LLM_PROMPT: Final[str] = (
-    LLM_PROMPT
+    f"PREPROCESSING STEP:\n{PREPROCESS_PROMPT}\n\nCONTENT GENERATION STEP:\n{CONTENT_PROMPT}"
     + f"""
 Provide all the answer in a YAML format. Here's an example of the expected output format:
 {(Path(input_examples.__file__).parent / 'default.yaml').read_text()}
@@ -67,37 +80,45 @@ class LLMAPI:
         self.max_tokens_per_query = max_tokens_per_query
         self.temperature = temperature
         self.api_key = api_key
-
-        # Set API key for litellm if provided
-        if api_key:
-            # We can set it directly in litellm
-            # litellm will use the appropriate env var or parameter based on the model
-            # For simplicity, we can pass it in the completion call as well.
-            pass
-
         self.client = instructor.from_litellm(litellm.acompletion)
 
-    async def query(self, prompt: str) -> AnkiCardContentsCollection:
-        # litellm requires the model to be passed in completion
-        # instructor handles the response_model and parsing
-        return await self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {
-                    'role': 'system',
-                    'content': LLM_PROMPT,
-                },
-                {'role': 'user', 'content': prompt},
-            ],
-            response_model=AnkiCardContentsCollection,
-            max_tokens=self.max_tokens_per_query,
-            temperature=self.temperature,
-            api_key=self.api_key,
-        )
+    async def query(self, input_text: str, batch_size: int = 10) -> AsyncGenerator[list[AnkiCardInfo], None]:
+        lines = [line.strip() for line in input_text.split("\n") if line.strip()]
+        if not lines:
+            return
+
+        for i in range(0, len(lines), batch_size):
+            batch = lines[i : i + batch_size]
+            
+            # Step 1: Preprocess
+            preprocessed: PreprocessedCollection = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {'role': 'system', 'content': PREPROCESS_PROMPT},
+                    {'role': 'user', 'content': "\n".join(batch)},
+                ],
+                response_model=PreprocessedCollection,
+                temperature=self.temperature,
+                api_key=self.api_key,
+            )
+
+            # Step 2: Generate Content
+            content_input = "\n".join([f"{w.normalized_word} ({w.category})" for w in preprocessed.words])
+            batch_result: AnkiCardContentsCollection = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {'role': 'system', 'content': CONTENT_PROMPT},
+                    {'role': 'user', 'content': content_input},
+                ],
+                response_model=AnkiCardContentsCollection,
+                max_tokens=self.max_tokens_per_query,
+                temperature=self.temperature,
+                api_key=self.api_key,
+            )
+            yield batch_result.card_contents
 
     async def query_single_card(self, word: str) -> AnkiCardInfo:
-        prompt = f"Provide information for the word: {word}"
-        collection = await self.query(prompt)
-        if not collection.card_contents:
-            raise ValueError(f"No card content generated for {word}")
-        return collection.card_contents[0]
+        async for batch in self.query(word):
+            if batch:
+                return batch[0]
+        raise ValueError(f"No card content generated for {word}")
