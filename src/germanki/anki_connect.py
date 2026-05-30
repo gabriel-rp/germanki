@@ -252,3 +252,6 @@ class AnkiConnectClient:
     async def get_notes_info(self, note_ids: list[int]) -> list[dict[str, Any]]:
         """Fetches detailed information for a list of note IDs."""
         return await self._request('notesInfo', {'notes': note_ids}) or []
+    async def sync(self) -> None:
+        """Synchronizes Anki with AnkiWeb."""
+        await self._request('sync')

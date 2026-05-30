@@ -17,5 +17,17 @@
     </div>
 </article>
 {% else %}
-<div id="status-banner" hx-swap-oob="true"></div>
+<div id="status-banner" hx-swap-oob="true" style="margin-bottom: 1rem; display: flex; justify-content: flex-end;">
+    <div style="display: flex; align-items: center; gap: 1rem;">
+        <div id="sync-response"></div>
+        <button class="outline btn-sm secondary" 
+            hx-post="/sync" 
+            hx-target="#sync-response" 
+            hx-indicator="#sync-loading"
+            style="margin: 0;">
+            <span id="sync-loading" class="htmx-indicator" aria-busy="true"></span>
+            Sync AnkiWeb
+        </button>
+    </div>
+</div>
 {% endif %}
