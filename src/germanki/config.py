@@ -54,7 +54,6 @@ class Config(BaseSettings):
     )
     audio_downloads_folder: Path = Field(default=DATA_DIR / "media" / "audio")
     image_downloads_folder: Path = Field(default=DATA_DIR / "media" / "image")
-    db_path: Path = Field(default=DATA_DIR / "germanki.db")
 
     enable_extra: bool = Field(default=True)
     image_position: ImagePosition = Field(default=ImagePosition.BACK)
@@ -67,7 +66,6 @@ class Config(BaseSettings):
         # Ensure directories exist
         self.audio_downloads_folder.mkdir(parents=True, exist_ok=True)
         self.image_downloads_folder.mkdir(parents=True, exist_ok=True)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def audio_filepath(self, filename: str) -> Path:
         return self.audio_downloads_folder / filename

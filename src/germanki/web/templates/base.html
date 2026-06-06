@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GermAnki 🙊</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🙊</text></svg>">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <style>
@@ -268,16 +269,64 @@
             .grid { grid-template-columns: 1fr !important; }
         }
     </style>
+    <script id="session-data" type="application/json">
+        {{ session.model_dump_json() | safe if session else 'null' }}
+    </script>
     <script>
         function setTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('germanki-theme', theme);
         }
 
+        function getSessionData() {
+            const data = localStorage.getItem('germanki-session');
+            return data ? JSON.parse(data) : null;
+        }
+
+        function saveSessionData(data) {
+            if (data) {
+                localStorage.setItem('germanki-session', JSON.stringify(data));
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             const savedTheme = localStorage.getItem('germanki-theme') || '90s';
             setTheme(savedTheme);
             document.getElementById('theme-selector').value = savedTheme;
+
+            // Update localStorage from server-provided session data
+            const serverSessionRaw = document.getElementById('session-data').textContent;
+            if (serverSessionRaw.trim() && serverSessionRaw.trim() !== 'null') {
+                const serverSession = JSON.parse(serverSessionRaw);
+                saveSessionData(serverSession);
+            }
+
+            // Session restoration if server session is empty
+            const sessionData = getSessionData();
+            const isPageEmpty = document.getElementById('empty-state') !== null;
+            
+            if (sessionData && isPageEmpty && window.location.pathname === '/') {
+                // If we have cards or at least input_text, we should restore
+                if ((sessionData.cards && sessionData.cards.length > 0) || (sessionData.input_text && sessionData.input_text.trim() !== '')) {
+                    console.log('Restoring session from localStorage...');
+                    fetch('/restore-session', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(sessionData)
+                    }).then(response => {
+                        if (response.ok) {
+                            window.location.reload();
+                        }
+                    });
+                }
+            }
+        });
+
+        window.addEventListener('session-updated', (event) => {
+            console.log('Session updated from server event');
+            saveSessionData(event.detail);
         });
     </script>
 </head>

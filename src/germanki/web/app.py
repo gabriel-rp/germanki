@@ -3,6 +3,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Final
+from datetime import datetime, timezone, timedelta
 
 from fastapi import (
     Cookie,
@@ -38,11 +39,49 @@ templates = get_templates(BASE_DIR)
 config = Config()
 
 
+async def cleanup_sessions_task():
+    """Background task to cleanup old sessions and their media."""
+    while True:
+        try:
+            now = datetime.now(timezone.utc)
+            # Session timeout: 2 days
+            timeout = timedelta(days=2)
+            
+            sessions = SessionManager.list_sessions()
+            expired_ids = []
+            
+            for session_id, session in list(sessions.items()):
+                if now - session.last_accessed > timeout:
+                    logger.info(f"Session {session_id} expired. Cleaning up...")
+                    
+                    # Cleanup media for all cards in the session
+                    from germanki.photos.pexels import PexelsClient
+                    service = Germanki(photos_client=PexelsClient(""))
+                    
+                    for card in session.cards:
+                        await service.cleanup_card_media(card)
+                        
+                    expired_ids.append(session_id)
+            
+            for session_id in expired_ids:
+                await SessionManager.delete_session(session_id)
+                
+            if expired_ids:
+                logger.info(f"Cleaned up {len(expired_ids)} expired sessions.")
+                
+        except Exception as e:
+            logger.error(f"Error in cleanup task: {e}")
+            
+        # Run every 30 minutes
+        await asyncio.sleep(1800)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize DB
-    await SessionManager.initialize()
+    # Start background cleanup
+    cleanup_task = asyncio.create_task(cleanup_sessions_task())
     yield
+    cleanup_task.cancel()
 
 
 app: Final[FastAPI] = FastAPI(lifespan=lifespan)
@@ -88,6 +127,29 @@ def get_germanki_service(
     return service
 
 
+@app.post("/restore-session")
+async def restore_session(
+    request: Request,
+    session_data: UserSession,
+    session: UserSession = Depends(get_session),
+):
+    # Merge session_data into the current session
+    session.cards = session_data.cards
+    session.input_text = session_data.input_text
+    session.input_source = session_data.input_source
+    session.deck_name = session_data.deck_name
+    session.selected_speaker = session_data.selected_speaker
+    session.llm_model = session_data.llm_model
+    session.photo_source = session_data.photo_source
+    session.enable_images = session_data.enable_images
+    session.openai_api_key = session_data.openai_api_key or session.openai_api_key
+    session.pexels_api_key = session_data.pexels_api_key or session.pexels_api_key
+    session.unsplash_api_key = session_data.unsplash_api_key or session.unsplash_api_key
+    
+    await SessionManager.save_session(session)
+    return {"status": "restored"}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, session: UserSession = Depends(get_session)):
     manual_example_path = Path(input_examples.__file__).parent / "default.yaml"
@@ -111,6 +173,7 @@ async def read_root(request: Request, session: UserSession = Depends(get_session
         "index.html",
         {
             "request": request,
+            "session": session,
             "cards": session.cards,
             "input_text": session.input_text,
             "deck_name": session.deck_name,
@@ -219,8 +282,9 @@ async def generate_cards(
                     all_html += f"<li id='card-item-{i}'>{card_inner}</li>"
                 yield f"<div id='card-list' hx-swap-oob='true' style='list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; width: 100%;'>{all_html}</div>"
 
-            # Finalize: enable sync button
-            yield "<script hx-swap-oob='true'>document.getElementById('sync-button').disabled = false;</script>"
+            # Finalize: enable sync button and sync session to localStorage
+            yield f"<script hx-swap-oob='true'>document.getElementById('sync-button').disabled = false;</script>"
+            yield f"<script>window.dispatchEvent(new CustomEvent('session-updated', {{detail: {session.model_dump_json()}}}));</script>"
             
         except Exception as e:
             logger.error(f"Stream error: {e}", exc_info=True)
@@ -282,7 +346,11 @@ async def check_duplicates(
 @app.post('/clear-cards')
 async def clear_cards(
     session: UserSession = Depends(get_session),
+    service: Germanki = Depends(get_germanki_service),
 ):
+    for card in session.cards:
+        await service.cleanup_card_media(card)
+        
     session.cards = []
     session.input_text = ''
     await SessionManager.save_session(session)
@@ -293,7 +361,10 @@ async def clear_cards(
                 <p style='font-weight: bold; color: var(--text-main); opacity: 0.5;'>EMPTY</p>
             </div>
         </ul>
-        <script>document.getElementById('input-text').value = '';</script>
+        <script>
+            document.getElementById('input-text').value = '';
+            localStorage.removeItem('germanki-session');
+        </script>
         """
     )
 
@@ -303,9 +374,11 @@ async def delete_card(
     request: Request,
     index: int,
     session: UserSession = Depends(get_session),
+    service: Germanki = Depends(get_germanki_service),
 ):
     if 0 <= index < len(session.cards):
         removed_card = session.cards.pop(index)
+        await service.cleanup_card_media(removed_card)
 
         # Also remove from input_text to prevent re-generation
         word_to_remove = removed_card.word.lower()
@@ -344,7 +417,7 @@ async def delete_card(
 
         import json
         return HTMLResponse(
-            content=card_list_html, 
+            content=card_list_html + f"<script>window.dispatchEvent(new CustomEvent('session-updated', {{detail: {session.model_dump_json()}}}));</script>", 
             headers={
                 "HX-Trigger": json.dumps({
                     "card-deleted": session.input_text
@@ -562,12 +635,13 @@ async def create_cards_anki(
         }
         
         # Add a status banner at the top of the list if there were errors
+        sync_script = f"<script>window.dispatchEvent(new CustomEvent('session-updated', {{detail: {session.model_dump_json()}}}));</script>"
         if remaining_cards:
             status_banner = f"<div class='warning' style='padding: 1rem; border: 2px solid var(--border-color); background: var(--card-bg); margin-bottom: 1rem;'><strong>⚠️ Sync encountered errors.</strong> Successfully added {len(successful_words)} cards. {len(remaining_cards)} cards failed and are shown below.</div>"
-            return HTMLResponse(content=status_banner + card_list_html, headers=headers)
+            return HTMLResponse(content=status_banner + card_list_html + sync_script, headers=headers)
         
         success_msg = f"<div class='success' style='padding: 1rem; border: 2px solid var(--border-color); background: var(--card-bg); margin-bottom: 1rem;'><strong>✅ All {len(successful_words)} cards created successfully!</strong></div>"
-        return HTMLResponse(content=success_msg + card_list_html, headers=headers)
+        return HTMLResponse(content=success_msg + card_list_html + sync_script, headers=headers)
 
     except Exception as e:
         from germanki.anki_connect import AnkiConnectRequestError
@@ -658,357 +732,3 @@ async def sync_ankiweb():
         return HTMLResponse(content=f"<div class='error' style='padding: 0.5rem; font-size: 0.8rem;'>❌ Sync failed: {str(e)}</div>")
 
 
-@app.get("/manage", response_class=HTMLResponse)
-async def manage_root(request: Request, session: UserSession = Depends(get_session)):
-    from germanki.anki_connect import AnkiConnectClient
-    anki_client = AnkiConnectClient()
-    try:
-        anki_decks = await anki_client.get_deck_names()
-    except Exception:
-        anki_decks = []
-
-    service = get_germanki_service(session)
-
-    response = templates.TemplateResponse(
-        "manage.html",
-        {
-            "request": request,
-            "active_tab": "manage",
-            "managed_cards": session.managed_cards,
-            "deck_name": session.deck_name,
-            "anki_decks": anki_decks,
-            "llm_model": session.llm_model,
-            "manage_search_query": session.manage_search_query,
-            "page": session.manage_page,
-            "total_pages": 1,
-            "total_count": len(session.managed_cards),
-            "openai_key_set": bool(service.config.openai_api_key),
-            "pexels_key_set": bool(
-                service.config.pexels_api_key or service.config.unsplash_api_key
-            )
-            if session.enable_images
-            else True,
-        },
-    )
-    response.set_cookie(key="session_id", value=session.session_id)
-    return response
-
-@app.post("/manage/load-deck", response_class=HTMLResponse)
-async def load_deck(
-    request: Request,
-    deck_name: str = Form(...),
-    query: str = Form(""),
-    page: int = Form(1),
-    session: UserSession = Depends(get_session),
-    service: Germanki = Depends(get_germanki_service),
-):
-    from germanki.anki_connect import AnkiConnectClient
-    anki_client = AnkiConnectClient()
-    
-    session.deck_name = deck_name
-    session.manage_search_query = query
-    session.manage_page = page
-    session.managed_cards = []
-    
-    # 50 cards per page for stability
-    PAGE_SIZE = 50
-    
-    try:
-        # Construct search query
-        # e.g. deck:"German" word
-        search_query = f'deck:"{deck_name}"'
-        if query.strip():
-            search_query += f' "{query.strip()}"'
-            
-        note_ids = await anki_client.find_notes(search_query)
-        if not note_ids:
-            await SessionManager.save_session(session)
-            return HTMLResponse(content="<div class='warning'>No cards found matching your search.</div>")
-            
-        total_count = len(note_ids)
-        total_pages = (total_count + PAGE_SIZE - 1) // PAGE_SIZE
-        
-        # Clamp page
-        page = max(1, min(page, total_pages))
-        session.manage_page = page
-        
-        # Get slice for current page
-        start_idx = (page - 1) * PAGE_SIZE
-        end_idx = start_idx + PAGE_SIZE
-        page_ids = note_ids[start_idx:end_idx]
-        
-        notes = await anki_client.get_notes_info(page_ids)
-        
-        for note in notes:
-            fields = note.get('fields', {})
-            # Extract word from Front field, stripping HTML and sound tags
-            raw_front = fields.get('Front', {}).get('value', '')
-            word = raw_front.split('<br>')[0].split('[sound:')[0].strip()
-            # Remove any residual HTML tags
-            import re
-            word = re.sub('<[^<]+?>', '', word)
-            
-            if not word: continue
-            
-            card = AnkiCardInfo(
-                note_id=note['noteId'],
-                word=word,
-                translations=[], 
-                definition="",
-                examples=[],
-                extra="",
-            )
-            session.managed_cards.append(card)
-            
-        await SessionManager.save_session(session)
-        
-        return templates.get_template("partials/managed_card_list.html").render(
-            {
-                "request": request, 
-                "cards": session.managed_cards,
-                "page": page,
-                "total_pages": total_pages,
-                "total_count": total_count
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error loading deck: {e}")
-        return HTMLResponse(content=f"<div class='error'>Error loading deck: {str(e)}</div>")
-
-@app.post("/manage/update-card/{index}/word")
-async def update_managed_card_word(
-    request: Request,
-    index: int,
-    session: UserSession = Depends(get_session),
-    service: Germanki = Depends(get_germanki_service),
-):
-    if 0 <= index < len(session.managed_cards):
-        if not service.config.openai_api_key:
-            return HTMLResponse(content="LLM API Key missing!")
-
-        card = session.managed_cards[index]
-        try:
-            llm = LLMAPI(api_key=service.config.openai_api_key, model=session.llm_model)
-            
-            # Step 1 logic from LLMAPI.query
-            from germanki.llm import PREPROCESS_PROMPT, PreprocessedCollection
-            preprocessed: PreprocessedCollection = await llm.client.chat.completions.create(
-                model=llm.model,
-                messages=[
-                    {'role': 'system', 'content': PREPROCESS_PROMPT},
-                    {'role': 'user', 'content': card.word},
-                ],
-                response_model=PreprocessedCollection,
-                temperature=llm.temperature,
-                api_key=llm.api_key,
-            )
-            
-            if preprocessed.words:
-                card.word = preprocessed.words[0].normalized_word
-                # We don't change category here but we could if we stored it in AnkiCardInfo
-            
-            await SessionManager.save_session(session)
-            return templates.get_template("partials/card_preview.html").render(
-                {"request": request, "card": card, "index": index, "mode": "manage"},
-            )
-        except Exception as e:
-            logger.error(f"Error normalizing word: {e}")
-            return HTMLResponse(content=f"<div class='error'>Normalization failed: {str(e)}</div>")
-    return HTMLResponse(content="")
-
-@app.post("/manage/update-card/{index}/content")
-async def update_managed_card_content(
-    request: Request,
-    index: int,
-    session: UserSession = Depends(get_session),
-    service: Germanki = Depends(get_germanki_service),
-):
-    if 0 <= index < len(session.managed_cards):
-        if not service.config.openai_api_key:
-            return HTMLResponse(content="LLM API Key missing!")
-
-        card = session.managed_cards[index]
-        try:
-            llm = LLMAPI(api_key=service.config.openai_api_key, model=session.llm_model)
-            new_card_info = await llm.query_single_card(card.word)
-
-            # Preserve existing ID and media
-            new_card_info.note_id = card.note_id
-            new_card_info.word_audio_url = card.word_audio_url
-            new_card_info.translation_image_url = card.translation_image_url
-
-            session.managed_cards[index] = new_card_info
-            await SessionManager.save_session(session)
-            
-            return templates.get_template("partials/card_preview.html").render(
-                {"request": request, "card": new_card_info, "index": index, "mode": "manage"},
-            )
-        except Exception as e:
-            logger.error(f"Error refreshing content: {e}")
-            return HTMLResponse(content=f"<div class='error'>Refresh failed: {str(e)}</div>")
-    return HTMLResponse(content="")
-
-@app.post("/manage/update-card/{index}/image")
-async def update_managed_card_image(
-    request: Request,
-    index: int,
-    session: UserSession = Depends(get_session),
-    service: Germanki = Depends(get_germanki_service),
-):
-    if 0 <= index < len(session.managed_cards):
-        card = session.managed_cards[index]
-        try:
-            await service.update_card_image(card)
-            await SessionManager.save_session(session)
-            return templates.get_template("partials/card_preview.html").render(
-                {"request": request, "card": card, "index": index, "mode": "manage"},
-            )
-        except Exception as e:
-            logger.error(f"Error updating image: {e}")
-            return HTMLResponse(content=f"<div class='error'>Image update failed: {str(e)}</div>")
-    return HTMLResponse(content="")
-
-@app.post("/manage/update-card/{index}/audio")
-async def update_managed_card_audio(
-    request: Request,
-    index: int,
-    session: UserSession = Depends(get_session),
-    service: Germanki = Depends(get_germanki_service),
-):
-    if 0 <= index < len(session.managed_cards):
-        card = session.managed_cards[index]
-        try:
-            await service.update_card_audio(card)
-            await SessionManager.save_session(session)
-            return templates.get_template("partials/card_preview.html").render(
-                {"request": request, "card": card, "index": index, "mode": "manage"},
-            )
-        except Exception as e:
-            logger.error(f"Error updating audio: {e}")
-            return HTMLResponse(content=f"<div class='error'>Audio update failed: {str(e)}</div>")
-    return HTMLResponse(content="")
-
-@app.post("/manage/update-card/{index}/full")
-async def update_managed_card_full(
-    request: Request,
-    index: int,
-    session: UserSession = Depends(get_session),
-    service: Germanki = Depends(get_germanki_service),
-):
-    if 0 <= index < len(session.managed_cards):
-        if not service.config.openai_api_key:
-            return HTMLResponse(content="LLM API Key missing!")
-
-        card = session.managed_cards[index]
-        try:
-            llm = LLMAPI(api_key=service.config.openai_api_key, model=session.llm_model)
-            
-            # 1. Normalize Word
-            from germanki.llm import PREPROCESS_PROMPT, PreprocessedCollection
-            preprocessed: PreprocessedCollection = await llm.client.chat.completions.create(
-                model=llm.model,
-                messages=[
-                    {'role': 'system', 'content': PREPROCESS_PROMPT},
-                    {'role': 'user', 'content': card.word},
-                ],
-                response_model=PreprocessedCollection,
-                temperature=llm.temperature,
-                api_key=llm.api_key,
-            )
-            if preprocessed.words:
-                card.word = preprocessed.words[0].normalized_word
-
-            # 2. Refresh Content
-            new_card_info = await llm.query_single_card(card.word)
-            new_card_info.note_id = card.note_id
-            
-            # 3. Refresh Media
-            await service.update_card_image(new_card_info)
-            await service.update_card_audio(new_card_info)
-
-            # Update session
-            session.managed_cards[index] = new_card_info
-            await SessionManager.save_session(session)
-
-            # 4. Save to Anki
-            from germanki.anki_connect import AnkiConnectClient, AnkiMedia, AnkiMediaType
-            anki_client = AnkiConnectClient()
-            
-            front_text = new_card_info.word
-            if new_card_info.word_audio_url:
-                audio_filename = Path(new_card_info.word_audio_url).name
-                front_text += f"<br>[sound:{audio_filename}]"
-                await anki_client.upload_media(AnkiMedia(path=Path(new_card_info.word_audio_url), anki_media_type=AnkiMediaType.AUDIO))
-            
-            back_text = ", ".join(new_card_info.translations)
-            if new_card_info.translation_image_url:
-                image_filename = Path(new_card_info.translation_image_url).name
-                back_text += f'<br><img src="{image_filename}">'
-                await anki_client.upload_media(AnkiMedia(path=Path(new_card_info.translation_image_url), anki_media_type=AnkiMediaType.IMAGE))
-            
-            extra_text = templates.get_template("anki/extra.html").render(card=new_card_info)
-            
-            fields = {
-                "Front": front_text,
-                "Back": back_text,
-                "Extra": extra_text
-            }
-            await anki_client.update_note_fields(new_card_info.note_id, fields)
-
-            inner_html = templates.get_template("partials/card_preview.html").render({"request": request, "card": new_card_info, "index": index, "mode": "manage"})
-            return HTMLResponse(
-                content=f"<div class='success' style='padding: 0.5rem; border: 1px solid green; margin-bottom: 1rem;'>✅ MAGIC SYNC COMPLETE!</div>" + inner_html
-            )
-        except Exception as e:
-            logger.error(f"Error in full update: {e}")
-            return HTMLResponse(content=f"<div class='error'>Magic update failed: {str(e)}</div>")
-    return HTMLResponse(content="")
-
-@app.post("/manage/save-card/{index}")
-async def save_managed_card(
-    request: Request,
-    index: int,
-    session: UserSession = Depends(get_session),
-):
-    if 0 <= index < len(session.managed_cards):
-        card_info = session.managed_cards[index]
-        if not card_info.note_id:
-            return HTMLResponse(content="Error: No note_id found for this card.")
-            
-        from germanki.anki_connect import AnkiConnectClient
-        anki_client = AnkiConnectClient()
-        
-        try:
-            front_text = card_info.word
-            if card_info.word_audio_url:
-                audio_filename = Path(card_info.word_audio_url).name
-                front_text += f"<br>[sound:{audio_filename}]"
-                from germanki.anki_connect import AnkiMedia, AnkiMediaType
-                await anki_client.upload_media(AnkiMedia(path=Path(card_info.word_audio_url), anki_media_type=AnkiMediaType.AUDIO))
-            
-            back_text = ", ".join(card_info.translations)
-            if card_info.translation_image_url:
-                image_filename = Path(card_info.translation_image_url).name
-                back_text += f'<br><img src="{image_filename}">'
-                from germanki.anki_connect import AnkiMedia, AnkiMediaType
-                await anki_client.upload_media(AnkiMedia(path=Path(card_info.translation_image_url), anki_media_type=AnkiMediaType.IMAGE))
-            
-            extra_text = templates.get_template("anki/extra.html").render(card=card_info)
-            
-            fields = {
-                "Front": front_text,
-                "Back": back_text,
-                "Extra": extra_text
-            }
-            
-            await anki_client.update_note_fields(card_info.note_id, fields)
-            
-            inner_html = templates.get_template("partials/card_preview.html").render({"request": request, "card": card_info, "index": index, "mode": "manage"})
-            return HTMLResponse(
-                content=f"<div class='success' style='padding: 0.5rem; border: 1px solid green; margin-bottom: 1rem;'>✅ Card updated in Anki!</div>" + inner_html
-            )
-        except Exception as e:
-            logger.error(f"Error saving to Anki: {e}")
-            return HTMLResponse(content=f"<div class='error'>Save failed: {str(e)}</div>")
-            
-    return HTMLResponse(content="")

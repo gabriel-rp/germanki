@@ -223,6 +223,15 @@ class Germanki:
     async def update_card_image(self, card: AnkiCardInfo) -> None:
         exceptions = []
 
+        # Delete old image if it exists
+        if card.translation_image_url:
+            old_path = Path(card.translation_image_url)
+            if old_path.exists():
+                try:
+                    old_path.unlink()
+                except Exception as e:
+                    logger.error(f"Error deleting old image {old_path}: {e}")
+
         for i, query_word in enumerate(card.query_words):
             try:
                 card.translation_image_url = str(await self._get_image(query_word))
@@ -239,6 +248,15 @@ class Germanki:
         raise ImageUpdateException(query_words=card.query_words, exceptions=exceptions)
 
     async def update_card_audio(self, card: AnkiCardInfo) -> None:
+        # Delete old audio if it exists
+        if card.word_audio_url:
+            old_path = Path(card.word_audio_url)
+            if old_path.exists():
+                try:
+                    old_path.unlink()
+                except Exception as e:
+                    logger.error(f"Error deleting old audio {old_path}: {e}")
+
         try:
             card.word_audio_url = str(await self._get_tts_audio(card.word))
         except Exception as e:
@@ -272,11 +290,33 @@ class Germanki:
                     anki_client=anki_client,
                     anki_card=card,
                 )
+                # If successful, delete media files from server
+                await self.cleanup_card_media(card_contents)
             except AnkiConnectResponseError as e:
                 response.exception = e
 
             responses.append(response)
         return responses
+
+    async def cleanup_card_media(self, card: AnkiCardInfo) -> None:
+        """Deletes media files associated with a card from the server."""
+        if card.word_audio_url:
+            path = Path(card.word_audio_url)
+            if path.exists():
+                try:
+                    path.unlink()
+                    logger.debug(f"Deleted audio file: {path}")
+                except Exception as e:
+                    logger.error(f"Error deleting audio file {path}: {e}")
+        
+        if card.translation_image_url:
+            path = Path(card.translation_image_url)
+            if path.exists():
+                try:
+                    path.unlink()
+                    logger.debug(f"Deleted image file: {path}")
+                except Exception as e:
+                    logger.error(f"Error deleting image file {path}: {e}")
 
     async def export_cards(
         self,
