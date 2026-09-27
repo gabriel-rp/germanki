@@ -10,6 +10,11 @@ from pydantic import BaseModel, Field
 from germanki.core import AnkiCardInfo
 from germanki.static import input_examples
 
+# The model is user-configurable, and not every model accepts every parameter
+# we send (temperature and max_tokens in particular). Drop the ones a given
+# model rejects instead of failing the whole card generation.
+litellm.drop_params = True
+
 
 class AnkiCardContentsCollection(BaseModel):
     card_contents: list[AnkiCardInfo]
@@ -72,7 +77,7 @@ class LLMAPI:
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = 'gpt-4o-mini',
+        model: str = 'gpt-5.4-mini',
         max_tokens_per_query: int = 4096,
         temperature: float = 0,
     ):
