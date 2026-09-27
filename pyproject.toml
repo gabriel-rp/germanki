@@ -48,14 +48,6 @@ default-groups = "all"
 [tool.hatch.build.targets.sdist]
 include = ["src/germanki"]
 
-[tool.hatch.build.targets.sdist.force-include]
-"germanki/web/templates/**" = "germanki/web/templates/**"
-"germanki/web/static/**" = "germanki/web/static/**"
-"germanki/input_examples/**" = "germanki/input_examples/**"
-"germanki/static/audio/sample_Hans.mp3" = "germanki/static/audio/sample_Hans.mp3"
-"germanki/static/audio/sample_Vicki.mp3" = "germanki/static/audio/sample_Vicki.mp3"
-"germanki/static/audio/sample_Marlene.mp3" = "germanki/static/audio/sample_Marlene.mp3"
-
 [tool.hatch.build.targets.wheel]
 include = ["src/germanki"]
 
