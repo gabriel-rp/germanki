@@ -1,6 +1,6 @@
 [project]
 name = "germanki"
-version = "0.3.0"
+version = "1.0.0"
 description = ""
 authors = [{ name = "Gabriel R. Pereira" }]
 requires-python = ">=3.11"
