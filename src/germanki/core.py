@@ -530,10 +530,12 @@ class Germanki:
             if search_response.total_results == 0:
                 raise PhotosNotFoundError(f"No results for {query}")
         except PhotosNotFoundError:
-            if page > int(page / 2):
+            # This page was empty. Retry in a smaller page range, which always
+            # shrinks because page >= 2 here. Page 1 empty means the query has
+            # no images at all, so give up rather than recurse into max_pages=0.
+            if page > 1:
                 return await self._get_image(query=query, max_pages=int(page / 2))
-            if page == 1:
-                raise
+            raise
 
         async with httpx.AsyncClient() as client:
             response = await client.get(search_response.photo_urls[0])

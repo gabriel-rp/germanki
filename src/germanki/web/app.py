@@ -309,9 +309,9 @@ async def check_duplicates(
     input_text: str = Form(...),
     deck_name: str = Form(...),
 ):
-    from germanki.anki_connect import AnkiConnectClient
+    from germanki.anki_connect import AnkiConnectClient, AnkiConnectError
     anki_client = AnkiConnectClient()
-    
+
     words = [line.strip() for line in input_text.split('\n') if line.strip()]
     if not words:
         return HTMLResponse(content="")
@@ -326,7 +326,9 @@ async def check_duplicates(
             found = await anki_client.find_notes(query)
             if found:
                 duplicates.append(word)
-    except Exception as e:
+    except AnkiConnectError as e:
+        # The check is advisory: Anki being unreachable or refusing the query
+        # must not block the user. Anything else is a bug and should surface.
         logger.error(f"Error checking duplicates: {e}")
         return HTMLResponse(content="")
 
