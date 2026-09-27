@@ -1,0 +1,6 @@
+{{ card.extra }}<br><br>
+Erklärung: {{ card.definition }}<br><br>
+Beispiele:<br>
+{% for example in card.examples %}
+{{ loop.index }}. {{ example }}<br>
+{% endfor %}

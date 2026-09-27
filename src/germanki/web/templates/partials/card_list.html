@@ -1,0 +1,9 @@
+<ul id="card-list" style="list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; width: 100%;">
+    {% for card in cards %}
+        {% with index=loop.index0 %}
+            <li id="card-item-{{ index }}">
+                {% include "partials/card_preview.html" %}
+            </li>
+        {% endwith %}
+    {% endfor %}
+</ul>
