@@ -305,10 +305,16 @@
             const sessionData = getSessionData();
             const isPageEmpty = document.getElementById('empty-state') !== null;
             
-            if (sessionData && isPageEmpty && window.location.pathname === '/') {
+            // Restore at most once per tab. Restoring input_text without any
+            // cards leaves the page empty, so the reload below would land back
+            // on these exact conditions and loop forever.
+            const alreadyTried = sessionStorage.getItem('germanki-restore-attempted');
+
+            if (sessionData && isPageEmpty && !alreadyTried && window.location.pathname === '/') {
                 // If we have cards or at least input_text, we should restore
                 if ((sessionData.cards && sessionData.cards.length > 0) || (sessionData.input_text && sessionData.input_text.trim() !== '')) {
                     console.log('Restoring session from localStorage...');
+                    sessionStorage.setItem('germanki-restore-attempted', '1');
                     fetch('/restore-session', {
                         method: 'POST',
                         headers: {

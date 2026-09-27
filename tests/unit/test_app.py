@@ -275,6 +275,25 @@ def test_delete_card_removes_card_media_and_input_line(
     assert hx_trigger(response)['card-deleted'] == 'Tschuss'
 
 
+def test_delete_card_returns_one_card_list_not_a_nested_wrapper(
+    client, session, service
+):
+    """The partial already emits <ul id="card-list"> with the grid styles.
+
+    Wrapping it in another #card-list grid nested two grids and duplicated the
+    id, which squeezed the real list into a single column - one card per row.
+    """
+    session.cards = [make_card('eins'), make_card('zwei'), make_card('drei')]
+
+    html = client.post('/delete-card/0').text
+
+    assert html.count('id="card-list"') == 1
+    assert "<div id='card-list'" not in html
+    # exactly one grid definition, on the <ul> that replaces the real list
+    assert html.count('grid-template-columns') == 1
+    assert 'hx-swap-oob="true"' in html.split('>')[0]
+
+
 @pytest.mark.parametrize('index', [-1, 1, 99])
 def test_delete_card_ignores_out_of_range_index(client, session, service, index):
     session.cards = [make_card('Hallo')]
@@ -684,6 +703,30 @@ def test_generate_reuses_existing_cards_and_only_queries_new_words(
     assert response.status_code == 200
     assert fake_query.asked_for == 'Tschuss'
     assert [c.word for c in session.cards] == ['Hallo', 'Tschuss']
+
+
+def test_generate_asks_the_llm_once_per_repeated_word(
+    client, session, service
+):
+    """A word typed twice must not become two identical cards."""
+    asked = []
+
+    async def fake_query(text, batch_size=10):
+        asked.append(text)
+        yield [make_card(w) for w in text.split('\n')]
+
+    with patch('germanki.web.app.LLMAPI') as mock_llm:
+        mock_llm.return_value.query = fake_query
+        client.post(
+            '/generate',
+            data={
+                'input_text': 'Hund\nKatze\nhund\n  Hund  \nKatze',
+                'input_source': 'chatgpt',
+            },
+        )
+
+    assert asked == ['Hund\nKatze']
+    assert [c.word for c in session.cards] == ['Hund', 'Katze']
 
 
 def test_generate_drops_cards_removed_from_the_input(client, session, service):

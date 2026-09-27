@@ -1,4 +1,6 @@
-<ul id="card-list" style="list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; width: 100%;">
+{# `oob` is set when a route swaps this list back in on its own; index.html
+   includes it inline, where an out-of-band swap would be wrong. #}
+<ul id="card-list" {% if oob %}hx-swap-oob="true"{% endif %} style="list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; width: 100%;">
     {% for card in cards %}
         {% with index=loop.index0 %}
             <li id="card-item-{{ index }}">

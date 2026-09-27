@@ -399,7 +399,7 @@ async def delete_card(
         
         # Re-render the whole list to ensure indices are correct
         card_list_html = templates.get_template("partials/card_list.html").render(
-            {"request": request, "cards": session.cards}
+            {"request": request, "cards": session.cards, "oob": True}
         )
         
         # If no cards left, show empty state
@@ -411,9 +411,6 @@ async def delete_card(
                 </div>
             </ul>
             """
-        else:
-            # Wrap in hx-swap-oob for card-list
-            card_list_html = f"<div id='card-list' hx-swap-oob='true' style='list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; width: 100%;'>{card_list_html}</div>"
 
         import json
         return HTMLResponse(
@@ -611,7 +608,7 @@ async def create_cards_anki(
 
         # Prepare UI response
         card_list_html = templates.get_template("partials/card_list.html").render(
-            {"request": request, "cards": session.cards}
+            {"request": request, "cards": session.cards, "oob": True}
         )
         
         # If no cards left, show empty state
@@ -623,8 +620,6 @@ async def create_cards_anki(
                 </div>
             </ul>
             """
-        else:
-             card_list_html = f"<div id='card-list' hx-swap-oob='true' style='list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; width: 100%;'>{card_list_html}</div>"
 
         import json
         headers = {
