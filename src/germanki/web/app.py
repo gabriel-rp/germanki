@@ -223,7 +223,16 @@ async def generate_cards(
                     yield "<script hx-swap-oob='true'>document.getElementById('sync-button').disabled = false;</script>"
                     return
 
-                input_lines = [line.strip() for line in input_text.split("\n") if line.strip()]
+                # Deduplicate case-insensitively, keeping the first spelling and
+                # the original order. Without this, "Hund" typed twice is sent
+                # to the LLM twice and comes back as two identical cards.
+                input_lines = []
+                seen_lines = set()
+                for line in input_text.split("\n"):
+                    line = line.strip()
+                    if line and line.lower() not in seen_lines:
+                        seen_lines.add(line.lower())
+                        input_lines.append(line)
                 
                 # Filter session cards
                 new_session_cards = []
