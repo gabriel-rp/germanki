@@ -31,7 +31,6 @@ from germanki.web.templates import get_templates
 
 # Setup paths
 BASE_DIR: Final[Path] = Path(__file__).resolve().parent
-STATIC_DIR: Final[Path] = BASE_DIR / "static"
 GERMANKI_ROOT: Final[Path] = Path(germanki_file).parent
 
 logger = get_logger(__file__)
@@ -85,8 +84,7 @@ async def lifespan(app: FastAPI):
 
 
 app: Final[FastAPI] = FastAPI(lifespan=lifespan)
-# Mount static files
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+# Serve generated media. Config creates both folders, so these always mount.
 app.mount(
     "/media/audio",
     StaticFiles(directory=config.audio_downloads_folder),
